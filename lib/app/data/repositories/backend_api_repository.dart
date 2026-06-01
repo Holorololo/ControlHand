@@ -68,7 +68,7 @@ class BackendApiRepository {
     final payload = response.body;
     final decoded = payload.isEmpty
         ? const <String, dynamic>{}
-        : _decodeJsonMap(payload);
+        : _tryDecodeJsonMap(payload);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final message =
@@ -78,6 +78,14 @@ class BackendApiRepository {
     }
 
     return decoded;
+  }
+
+  Map<String, dynamic> _tryDecodeJsonMap(String payload) {
+    try {
+      return _decodeJsonMap(payload);
+    } on FormatException {
+      return const <String, dynamic>{};
+    }
   }
 
   Map<String, dynamic> _decodeJsonMap(String payload) {

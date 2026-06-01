@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:camera/camera.dart';
@@ -9,6 +8,8 @@ import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
+
+import '../data/repositories/backend_api_repository.dart';
 
 enum MobileCameraRelayStatus {
   unsupported,
@@ -32,6 +33,7 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
   CameraController? _controller;
   CameraDescription? _selectedCamera;
   http.Client? _client;
+  BackendApiRepository? _backendApiRepository;
   String? _baseUrl;
   bool _streamRequested = false;
   bool _uploadInProgress = false;
@@ -74,6 +76,11 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
 
     _streamRequested = true;
     _baseUrl = _normalizeBaseUrl(host, port);
+    _client ??= http.Client();
+    _backendApiRepository = BackendApiRepository(
+      client: _client!,
+      baseUrl: _baseUrl!,
+    );
 
     await _ensureCameraReady();
 
@@ -94,6 +101,7 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
   Future<void> stopRelay({bool disposeCamera = false}) async {
     _streamRequested = false;
     _baseUrl = null;
+    _backendApiRepository = null;
 
     final cameraController = _controller;
     if (cameraController != null && cameraController.value.isStreamingImages) {
@@ -346,28 +354,18 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
 
   Future<void> _uploadFrame(Uint8List jpegBytes) async {
     try {
-      _client ??= http.Client();
-      final response = await _client!
-          .post(
-            Uri.parse('$_baseUrl/frame'),
-            headers: const <String, String>{'Content-Type': 'image/jpeg'},
-            body: jpegBytes,
-          )
-          .timeout(const Duration(seconds: 4));
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        status.value = MobileCameraRelayStatus.streaming;
+      final backendApiRepository = _backendApiRepository;
+      if (backendApiRepository == null) {
+        status.value = MobileCameraRelayStatus.failed;
         infoMessage.value =
-            'Camara del celular activa. Backend procesando frames remotos.';
+            'No se pudo enviar el frame al backend. Conexion no inicializada.';
         return;
       }
 
-      final decoded = _tryDecodeJson(response.body);
-      final message =
-          decoded['message']?.toString() ??
-          'Respuesta HTTP ${response.statusCode} al subir frame.';
-      status.value = MobileCameraRelayStatus.failed;
-      infoMessage.value = message;
+      await backendApiRepository.sendFrame(jpegBytes);
+      status.value = MobileCameraRelayStatus.streaming;
+      infoMessage.value =
+          'Camara del celular activa. Backend procesando frames remotos.';
     } catch (error) {
       status.value = MobileCameraRelayStatus.failed;
       infoMessage.value =
@@ -375,18 +373,6 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
     } finally {
       _uploadInProgress = false;
     }
-  }
-
-  Map<String, dynamic> _tryDecodeJson(String payload) {
-    try {
-      final decoded = jsonDecode(payload);
-      if (decoded is Map<String, dynamic>) {
-        return decoded;
-      }
-    } catch (_) {
-      // Si no es JSON, devolvemos vacio y usamos el mensaje generico.
-    }
-    return const <String, dynamic>{};
   }
 
   String _normalizeBaseUrl(String host, int port) {
