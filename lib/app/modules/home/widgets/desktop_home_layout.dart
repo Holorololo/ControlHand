@@ -41,10 +41,11 @@ class DesktopHomeLayout extends StatelessWidget {
 
                   return Obx(() {
                     final state = controller.effectiveState;
-                    final presentation = HomePresentationMapper(
-                      controller: controller,
-                      state: state,
-                    );
+                    final presentation =
+                        HomePresentationMapper.fromHomeController(
+                          controller: controller,
+                          state: state,
+                        );
                     final connectionViewModel = presentation.connectionStatus;
                     final backendStatusViewModel = presentation.backendStatus;
                     final carStatusViewModel = presentation.carStatus;

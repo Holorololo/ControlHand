@@ -58,7 +58,7 @@ class MobileHomeLayout extends StatelessWidget {
             SafeArea(
               child: Obx(() {
                 final state = controller.effectiveState;
-                final presentation = HomePresentationMapper(
+                final presentation = HomePresentationMapper.fromHomeController(
                   controller: controller,
                   state: state,
                 );
@@ -201,7 +201,7 @@ class _ControlCenterSheet extends StatelessWidget {
           ),
           child: Obx(() {
             final state = controller.effectiveState;
-            final presentation = HomePresentationMapper(
+            final presentation = HomePresentationMapper.fromHomeController(
               controller: controller,
               state: state,
             );
