@@ -2,14 +2,18 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../data/enums/car_command.dart';
 import '../../../data/models/auto_state.dart';
 import '../../../services/auto_state_polling_service.dart';
 import '../../../services/backend_process_service.dart';
 import '../../../services/mobile_camera_relay_service.dart';
+import 'bluetooth_controller.dart';
 import 'connection_controller.dart';
 import 'drive_session_controller.dart';
 
 class HomeController extends GetxController {
+  final BluetoothController _bluetoothController =
+      Get.find<BluetoothController>();
   final ConnectionController _connectionController =
       Get.find<ConnectionController>();
   final DriveSessionController _driveSessionController =
@@ -30,6 +34,10 @@ class HomeController extends GetxController {
       _driveSessionController.mobileCameraInfoMessage;
   RxBool get isDiagnosticsVisible =>
       _driveSessionController.isDiagnosticsVisible;
+  RxBool get isBluetoothConnected => _bluetoothController.isConnected;
+  RxBool get isBluetoothMockMode => _bluetoothController.isMockMode;
+  Rxn<CarCommand> get lastBluetoothCommand => _bluetoothController.lastCommand;
+  RxString get lastBluetoothPayload => _bluetoothController.lastPayload;
 
   TextEditingController get hostTextController =>
       _connectionController.hostTextController;
@@ -82,6 +90,23 @@ class HomeController extends GetxController {
 
   Future<void> restartManagedBackend() =>
       _connectionController.restartManagedBackend();
+
+  Future<void> connectBluetooth() => _bluetoothController.connect();
+
+  Future<void> disconnectBluetooth() => _bluetoothController.disconnect();
+
+  Future<void> toggleBluetoothConnection() =>
+      _bluetoothController.toggleConnection();
+
+  Future<void> sendForward() => _bluetoothController.sendForward();
+
+  Future<void> sendStop() => _bluetoothController.sendStop();
+
+  Future<void> sendLeft() => _bluetoothController.sendLeft();
+
+  Future<void> sendRight() => _bluetoothController.sendRight();
+
+  Future<void> sendBackward() => _bluetoothController.sendBackward();
 
   Future<void> openDiagnosticsPanel() =>
       _driveSessionController.openDiagnosticsPanel();

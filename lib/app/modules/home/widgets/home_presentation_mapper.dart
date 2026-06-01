@@ -185,6 +185,17 @@ class HomePresentationMapper {
     );
   }
 
+  static BluetoothStatusViewModel mapBluetoothStatus({
+    required HomeController controller,
+  }) {
+    return BluetoothStatusViewModel(
+      isConnected: controller.isBluetoothConnected.value,
+      isMockMode: controller.isBluetoothMockMode.value,
+      lastCommand: controller.lastBluetoothCommand.value,
+      lastPayload: controller.lastBluetoothPayload.value,
+    );
+  }
+
   ConnectionStatusViewModel get connectionStatus {
     final statusLabel = _input.statusLabel;
 

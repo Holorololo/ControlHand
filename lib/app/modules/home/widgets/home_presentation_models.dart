@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../../../data/enums/car_command.dart';
+import '../../../data/mappers/car_command_mapper.dart';
 import 'home_widget_support.dart';
 
 class ConnectionStatusViewModel {
@@ -236,4 +238,48 @@ class ProcessedPreviewViewModel {
   final double previewAspectRatio;
   final bool hasCameraPreview;
   final Uint8List? previewBytes;
+}
+
+class BluetoothStatusViewModel {
+  const BluetoothStatusViewModel._({
+    required this.connectionLabel,
+    required this.connectionTone,
+    required this.modeLabel,
+    required this.modeTone,
+    required this.lastCommandLabel,
+    required this.lastPayloadLabel,
+    required this.toggleActionLabel,
+    required this.isConnected,
+  });
+
+  factory BluetoothStatusViewModel({
+    required bool isConnected,
+    required bool isMockMode,
+    required CarCommand? lastCommand,
+    required String lastPayload,
+  }) {
+    return BluetoothStatusViewModel._(
+      connectionLabel: isConnected
+          ? 'Bluetooth conectado'
+          : 'Bluetooth desconectado',
+      connectionTone: isConnected ? HomeTone.good : HomeTone.alert,
+      modeLabel: isMockMode ? 'Modo simulado' : 'Modo real',
+      modeTone: isMockMode ? HomeTone.soft : HomeTone.warn,
+      lastCommandLabel: lastCommand == null
+          ? 'Sin comando'
+          : CarCommandMapper.toVisualText(lastCommand),
+      lastPayloadLabel: lastPayload.isEmpty ? 'Sin payload' : lastPayload,
+      toggleActionLabel: isConnected ? 'Desconectar' : 'Conectar',
+      isConnected: isConnected,
+    );
+  }
+
+  final String connectionLabel;
+  final HomeTone connectionTone;
+  final String modeLabel;
+  final HomeTone modeTone;
+  final String lastCommandLabel;
+  final String lastPayloadLabel;
+  final String toggleActionLabel;
+  final bool isConnected;
 }

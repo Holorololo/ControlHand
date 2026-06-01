@@ -15,6 +15,6 @@ void main() {
     expect(find.text('Centro de control'), findsOneWidget);
     expect(find.text('Preview procesado'), findsOneWidget);
     expect(find.text('Estado del auto'), findsOneWidget);
-    expect(find.text('Conectar'), findsOneWidget);
+    expect(find.text('Conectar'), findsAtLeastNWidgets(1));
   });
 }

@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../../theme/app_theme.dart';
 import '../controllers/home_controller.dart';
 import 'backend_status_panel.dart';
+import 'car_command_panel.dart';
 import 'car_status_panel.dart';
 import 'connection_panel.dart';
 import 'control_buttons_panel.dart';
@@ -269,6 +270,33 @@ class _ControlCenterBody extends StatelessWidget {
             state: state,
           );
           return CarStatusPanel(viewModel: carStatusViewModel);
+        }),
+        const SizedBox(height: 18),
+        Obx(() {
+          final bluetoothStatusViewModel =
+              HomePresentationMapper.mapBluetoothStatus(controller: controller);
+          return CarCommandPanel(
+            bluetoothStatusViewModel: bluetoothStatusViewModel,
+            activeCommand: controller.lastBluetoothCommand.value,
+            onToggleBluetoothConnection: () {
+              controller.toggleBluetoothConnection();
+            },
+            onForward: () {
+              controller.sendForward();
+            },
+            onStop: () {
+              controller.sendStop();
+            },
+            onLeft: () {
+              controller.sendLeft();
+            },
+            onRight: () {
+              controller.sendRight();
+            },
+            onBackward: () {
+              controller.sendBackward();
+            },
+          );
         }),
         const SizedBox(height: 18),
         Obx(() {
