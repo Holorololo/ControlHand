@@ -9,7 +9,6 @@ import 'connection_panel.dart';
 import 'control_buttons_panel.dart';
 import 'hand_status_panel.dart';
 import 'home_presentation_mapper.dart';
-import 'home_presentation_models.dart';
 import 'home_widget_support.dart';
 import 'mobile_preview_panel.dart';
 
@@ -56,65 +55,44 @@ class MobileHomeLayout extends StatelessWidget {
           children: <Widget>[
             const Positioned.fill(child: NeonBackdrop()),
             SafeArea(
-              child: Obx(() {
-                final state = controller.effectiveState;
-                final presentation = HomePresentationMapper.fromHomeController(
-                  controller: controller,
-                  state: state,
-                );
-                final connectionViewModel = presentation.connectionStatus;
-                final handStatusViewModel = presentation.handStatus;
-                final carStatusViewModel = presentation.carStatus;
-
-                return Column(
-                  children: <Widget>[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
-                      child: Row(
-                        children: <Widget>[
-                          const Expanded(child: BrandCluster(compact: false)),
-                          StatusDotChip(
-                            label: connectionViewModel.statusLabel,
-                            tone: connectionViewModel.statusTone,
+              child: Column(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
+                    child: Row(
+                      children: <Widget>[
+                        const Expanded(child: BrandCluster(compact: false)),
+                        _ReactiveConnectionStatusChip(controller: controller),
+                        const SizedBox(width: 10),
+                        IconButton.filledTonal(
+                          onPressed: () => _openControlCenter(context),
+                          style: IconButton.styleFrom(
+                            backgroundColor: AppTheme.panelStrong,
+                            foregroundColor: AppTheme.primarySoft,
                           ),
-                          const SizedBox(width: 10),
-                          IconButton.filledTonal(
-                            onPressed: () => _openControlCenter(context),
-                            style: IconButton.styleFrom(
-                              backgroundColor: AppTheme.panelStrong,
-                              foregroundColor: AppTheme.primarySoft,
-                            ),
-                            icon: const Icon(Icons.tune_rounded),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 18),
-                        child: MobilePreviewPanel(
-                          cameraController: controller.phoneCameraController,
-                          cameraWaitingMessage:
-                              controller.mobileCameraInfoMessage.value,
-                          handStatusViewModel: handStatusViewModel,
+                          icon: const Icon(Icons.tune_rounded),
                         ),
-                      ),
+                      ],
                     ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-                      child: _MobileCommandDeck(
-                        connectionViewModel: connectionViewModel,
-                        handStatusViewModel: handStatusViewModel,
-                        carStatusViewModel: carStatusViewModel,
-                        onOpenPanel: () => _openControlCenter(context),
-                        onToggleConnection: () {
-                          controller.toggleConnection();
-                        },
-                      ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      child: _ReactiveMobilePreview(controller: controller),
                     ),
-                  ],
-                );
-              }),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+                    child: _MobileCommandDeck(
+                      controller: controller,
+                      onOpenPanel: () => _openControlCenter(context),
+                      onToggleConnection: () {
+                        controller.toggleConnection();
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -125,16 +103,12 @@ class MobileHomeLayout extends StatelessWidget {
 
 class _MobileCommandDeck extends StatelessWidget {
   const _MobileCommandDeck({
-    required this.connectionViewModel,
-    required this.handStatusViewModel,
-    required this.carStatusViewModel,
+    required this.controller,
     required this.onOpenPanel,
     required this.onToggleConnection,
   });
 
-  final ConnectionStatusViewModel connectionViewModel;
-  final HandStatusViewModel handStatusViewModel;
-  final CarStatusViewModel carStatusViewModel;
+  final HomeController controller;
   final VoidCallback onOpenPanel;
   final VoidCallback onToggleConnection;
 
@@ -148,25 +122,23 @@ class _MobileCommandDeck extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Expanded(
-                child: HandStatusMetricPanel(viewModel: handStatusViewModel),
-              ),
+              Expanded(child: _ReactiveHandMetricPanel(controller: controller)),
               const SizedBox(width: 12),
-              Expanded(
-                child: CarStatusMetricPanel(viewModel: carStatusViewModel),
-              ),
+              Expanded(child: _ReactiveCarMetricPanel(controller: controller)),
             ],
           ),
           const SizedBox(height: 12),
-          MobilePrimaryActionsPanel(
-            viewModel: connectionViewModel,
-            onToggleConnection: onToggleConnection,
-            onOpenPanel: onOpenPanel,
-          ),
-          if (carStatusViewModel.errorMessage.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 12),
-            AlertStrip(message: carStatusViewModel.errorMessage),
-          ],
+          Obx(() {
+            final connectionViewModel = HomePresentationMapper.mapConnection(
+              controller: controller,
+            );
+            return MobilePrimaryActionsPanel(
+              viewModel: connectionViewModel,
+              onToggleConnection: onToggleConnection,
+              onOpenPanel: onOpenPanel,
+            );
+          }),
+          _ReactiveCarAlertStrip(controller: controller),
         ],
       ),
     );
@@ -199,58 +171,47 @@ class _ControlCenterSheet extends StatelessWidget {
               ),
             ],
           ),
-          child: Obx(() {
-            final state = controller.effectiveState;
-            final presentation = HomePresentationMapper.fromHomeController(
-              controller: controller,
-              state: state,
-            );
-
-            return ListView(
-              controller: scrollController,
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 26),
-              children: <Widget>[
-                Center(
-                  child: Container(
-                    width: 52,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
+          child: ListView(
+            controller: scrollController,
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 26),
+            children: <Widget>[
+              Center(
+                child: Container(
+                  width: 52,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(999),
                   ),
                 ),
-                const SizedBox(height: 18),
-                Row(
-                  children: <Widget>[
-                    const Expanded(child: BrandCluster(compact: true)),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                _ControlCenterBody(
-                  connectionViewModel: presentation.connectionStatus,
-                  backendStatusViewModel: presentation.backendStatus,
-                  carStatusViewModel: presentation.carStatus,
-                  previewViewModel: presentation.processedPreview,
-                  hostTextController: controller.hostTextController,
-                  portTextController: controller.portTextController,
-                  onToggleConnection: () {
-                    controller.toggleConnection();
-                  },
-                  onReconnect: () {
-                    controller.connect();
-                  },
-                  onRestartBackend: () {
-                    controller.restartManagedBackend();
-                  },
-                ),
-              ],
-            );
-          }),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: <Widget>[
+                  const Expanded(child: BrandCluster(compact: true)),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              _ControlCenterBody(
+                controller: controller,
+                hostTextController: controller.hostTextController,
+                portTextController: controller.portTextController,
+                onToggleConnection: () {
+                  controller.toggleConnection();
+                },
+                onReconnect: () {
+                  controller.connect();
+                },
+                onRestartBackend: () {
+                  controller.restartManagedBackend();
+                },
+              ),
+            ],
+          ),
         );
       },
     );
@@ -259,10 +220,7 @@ class _ControlCenterSheet extends StatelessWidget {
 
 class _ControlCenterBody extends StatelessWidget {
   const _ControlCenterBody({
-    required this.connectionViewModel,
-    required this.backendStatusViewModel,
-    required this.carStatusViewModel,
-    required this.previewViewModel,
+    required this.controller,
     required this.hostTextController,
     required this.portTextController,
     required this.onToggleConnection,
@@ -270,10 +228,7 @@ class _ControlCenterBody extends StatelessWidget {
     required this.onRestartBackend,
   });
 
-  final ConnectionStatusViewModel connectionViewModel;
-  final BackendStatusViewModel backendStatusViewModel;
-  final CarStatusViewModel carStatusViewModel;
-  final ProcessedPreviewViewModel previewViewModel;
+  final HomeController controller;
   final TextEditingController hostTextController;
   final TextEditingController portTextController;
   final VoidCallback onToggleConnection;
@@ -284,21 +239,150 @@ class _ControlCenterBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: <Widget>[
-        ConnectionPanel(
-          viewModel: connectionViewModel,
-          hostTextController: hostTextController,
-          portTextController: portTextController,
-          onToggleConnection: onToggleConnection,
-          onReconnect: onReconnect,
-          onRestartBackend: onRestartBackend,
-        ),
+        Obx(() {
+          final connectionViewModel = HomePresentationMapper.mapConnection(
+            controller: controller,
+          );
+          return ConnectionPanel(
+            viewModel: connectionViewModel,
+            hostTextController: hostTextController,
+            portTextController: portTextController,
+            onToggleConnection: onToggleConnection,
+            onReconnect: onReconnect,
+            onRestartBackend: onRestartBackend,
+          );
+        }),
         const SizedBox(height: 18),
-        ProcessedPreviewPanel(viewModel: previewViewModel),
+        Obx(() {
+          final state = controller.effectiveState;
+          final previewViewModel = HomePresentationMapper.mapProcessedPreview(
+            controller: controller,
+            state: state,
+          );
+          return ProcessedPreviewPanel(viewModel: previewViewModel);
+        }),
         const SizedBox(height: 18),
-        CarStatusPanel(viewModel: carStatusViewModel),
+        Obx(() {
+          final state = controller.effectiveState;
+          final carStatusViewModel = HomePresentationMapper.mapCar(
+            controller: controller,
+            state: state,
+          );
+          return CarStatusPanel(viewModel: carStatusViewModel);
+        }),
         const SizedBox(height: 18),
-        BackendStatusPanel(viewModel: backendStatusViewModel),
+        Obx(() {
+          final backendStatusViewModel = HomePresentationMapper.mapBackend(
+            controller: controller,
+          );
+          return BackendStatusPanel(viewModel: backendStatusViewModel);
+        }),
       ],
     );
+  }
+}
+
+class _ReactiveConnectionStatusChip extends StatelessWidget {
+  const _ReactiveConnectionStatusChip({required this.controller});
+
+  final HomeController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final connectionViewModel = HomePresentationMapper.mapConnection(
+        controller: controller,
+      );
+      return StatusDotChip(
+        label: connectionViewModel.statusLabel,
+        tone: connectionViewModel.statusTone,
+      );
+    });
+  }
+}
+
+class _ReactiveMobilePreview extends StatelessWidget {
+  const _ReactiveMobilePreview({required this.controller});
+
+  final HomeController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final state = controller.effectiveState;
+      final handStatusViewModel = HomePresentationMapper.mapHand(
+        controller: controller,
+        state: state,
+      );
+      return MobilePreviewPanel(
+        cameraController: controller.phoneCameraController,
+        cameraWaitingMessage: controller.mobileCameraInfoMessage.value,
+        handStatusViewModel: handStatusViewModel,
+      );
+    });
+  }
+}
+
+class _ReactiveHandMetricPanel extends StatelessWidget {
+  const _ReactiveHandMetricPanel({required this.controller});
+
+  final HomeController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final state = controller.effectiveState;
+      final handStatusViewModel = HomePresentationMapper.mapHand(
+        controller: controller,
+        state: state,
+      );
+      return HandStatusMetricPanel(viewModel: handStatusViewModel);
+    });
+  }
+}
+
+class _ReactiveCarMetricPanel extends StatelessWidget {
+  const _ReactiveCarMetricPanel({required this.controller});
+
+  final HomeController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final state = controller.effectiveState;
+      final carStatusViewModel = HomePresentationMapper.mapCar(
+        controller: controller,
+        state: state,
+      );
+      return CarStatusMetricPanel(viewModel: carStatusViewModel);
+    });
+  }
+}
+
+class _ReactiveCarAlertStrip extends StatelessWidget {
+  const _ReactiveCarAlertStrip({required this.controller});
+
+  final HomeController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final state = controller.effectiveState;
+      final carStatusViewModel = HomePresentationMapper.mapCar(
+        controller: controller,
+        state: state,
+      );
+
+      if (carStatusViewModel.errorMessage.isEmpty) {
+        return const SizedBox.shrink();
+      }
+
+      return Column(
+        children: <Widget>[
+          const SizedBox(height: 12),
+          AlertStrip(message: carStatusViewModel.errorMessage),
+        ],
+      );
+    });
   }
 }

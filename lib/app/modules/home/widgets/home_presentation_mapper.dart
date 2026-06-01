@@ -109,6 +109,82 @@ class HomePresentationMapper {
 
   final HomePresentationInput _input;
 
+  static ConnectionStatusViewModel mapConnection({
+    required HomeController controller,
+  }) {
+    return ConnectionStatusViewModel(
+      statusLabel: controller.statusLabel,
+      statusTone: connectionTone(controller.connectionStatus.value),
+      intro: controller.connectionIntro,
+      isMobileClient: controller.isMobileClient,
+      phoneCameraStatusLabel: controller.phoneCameraStatusLabel,
+      phoneCameraTone: cameraTone(controller.mobileCameraStatus.value),
+      backendStatusLabel: controller.backendStatusLabel,
+      backendStatusTone: backendTone(controller.backendStatusLabel),
+      endpointLabel: controller.endpointLabel,
+      connectionHint: controller.connectionHint,
+      backendActionHint: controller.backendActionHint,
+      isConnecting: controller.isConnecting,
+      isConnected: controller.isConnected,
+      canRestartManagedBackend: controller.canRestartManagedBackend,
+    );
+  }
+
+  static BackendStatusViewModel mapBackend({
+    required HomeController controller,
+  }) {
+    return BackendStatusViewModel(
+      command: controller.backendCommand,
+      recentLog: controller.backendRecentLog.value,
+      infoMessage: controller.backendInfoMessage.value,
+      statePreview: controller.statePreview,
+    );
+  }
+
+  static HandStatusViewModel mapHand({
+    required HomeController controller,
+    required AutoState state,
+  }) {
+    return HandStatusViewModel(
+      summary: controller.handSummary,
+      cameraStatusLabel: controller.phoneCameraStatusLabel,
+      cameraTone: cameraTone(controller.mobileCameraStatus.value),
+      cameraSummary: controller.cameraSummary,
+      mobileCameraInfoMessage: controller.mobileCameraInfoMessage.value,
+      fingersUp: state.fingersUp,
+      carMoving: state.carMoving,
+      packetLabel: controller.packetLabel,
+    );
+  }
+
+  static CarStatusViewModel mapCar({
+    required HomeController controller,
+    required AutoState state,
+  }) {
+    return CarStatusViewModel(
+      movementLabel: controller.movementLabel,
+      carMoving: state.carMoving,
+      fingersUp: state.fingersUp,
+      speed: state.speed,
+      handState: state.handState,
+      carProgress: state.carProgress,
+      errorMessage: controller.errorMessage.value,
+    );
+  }
+
+  static ProcessedPreviewViewModel mapProcessedPreview({
+    required HomeController controller,
+    required AutoState state,
+  }) {
+    return ProcessedPreviewViewModel(
+      handDetected: state.handDetected,
+      cameraSummary: controller.cameraSummary,
+      previewAspectRatio: state.previewAspectRatio,
+      hasCameraPreview: state.hasCameraPreview,
+      previewBytes: state.previewBytes,
+    );
+  }
+
   ConnectionStatusViewModel get connectionStatus {
     final statusLabel = _input.statusLabel;
 
