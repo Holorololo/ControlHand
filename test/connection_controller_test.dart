@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 
 import 'package:movilcontrol/app/modules/home/controllers/connection_controller.dart';
-import 'package:movilcontrol/app/services/auto_socket_service.dart';
+import 'package:movilcontrol/app/services/auto_state_polling_service.dart';
 import 'package:movilcontrol/app/services/backend_process_service.dart';
 import 'package:movilcontrol/app/services/mobile_camera_relay_service.dart';
 
@@ -55,12 +55,12 @@ void main() {
       final services = _registerServices();
       final controller = TestConnectionController(autoConnect: false);
 
-      services.socket.status.value = SocketConnectionStatus.connected;
+      services.polling.status.value = SocketConnectionStatus.connected;
       services.backend.status.value = BackendRuntimeStatus.running;
       expect(controller.statusLabel, 'Conectado');
       expect(controller.backendStatusLabel, 'Backend iniciado por Flutter');
 
-      services.socket.status.value = SocketConnectionStatus.disconnected;
+      services.polling.status.value = SocketConnectionStatus.disconnected;
       services.backend.status.value = BackendRuntimeStatus.failed;
       expect(controller.statusLabel, 'Desconectado');
       expect(controller.backendStatusLabel, 'Fallo al iniciar backend');
@@ -82,15 +82,15 @@ void main() {
         expect(services.backend.ensureStartedCallCount, 1);
         expect(services.backend.lastEnsureHost, '127.0.0.1');
         expect(services.backend.lastEnsurePort, 5000);
-        expect(services.socket.connectCallCount, 1);
-        expect(services.socket.lastConnectHost, '127.0.0.1');
-        expect(services.socket.lastConnectPort, 5000);
+        expect(services.polling.connectCallCount, 1);
+        expect(services.polling.lastConnectHost, '127.0.0.1');
+        expect(services.polling.lastConnectPort, 5000);
         expect(services.mobile.stopRelayCallCount, 1);
         expect(services.mobile.startRelayCallCount, 1);
 
         await controller.toggleConnection();
 
-        expect(services.socket.disconnectCallCount, 1);
+        expect(services.polling.disconnectCallCount, 1);
         expect(services.mobile.stopRelayCallCount, 2);
       },
     );
@@ -114,7 +114,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(services.backend.ensureStartedCallCount, 0);
-      expect(services.socket.connectCallCount, 0);
+      expect(services.polling.connectCallCount, 0);
       expect(services.mobile.startRelayCallCount, 0);
     });
 
@@ -143,16 +143,16 @@ void main() {
 }
 
 _RegisteredConnectionServices _registerServices() {
-  final socket = FakeAutoSocketService();
+  final polling = FakeAutoStatePollingService();
   final backend = FakeBackendProcessService();
   final mobile = FakeMobileCameraRelayService();
 
-  Get.put<AutoSocketService>(socket);
+  Get.put<AutoStatePollingService>(polling);
   Get.put<BackendProcessService>(backend);
   Get.put<MobileCameraRelayService>(mobile);
 
   return _RegisteredConnectionServices(
-    socket: socket,
+    polling: polling,
     backend: backend,
     mobile: mobile,
   );
@@ -160,12 +160,12 @@ _RegisteredConnectionServices _registerServices() {
 
 class _RegisteredConnectionServices {
   const _RegisteredConnectionServices({
-    required this.socket,
+    required this.polling,
     required this.backend,
     required this.mobile,
   });
 
-  final FakeAutoSocketService socket;
+  final FakeAutoStatePollingService polling;
   final FakeBackendProcessService backend;
   final FakeMobileCameraRelayService mobile;
 }

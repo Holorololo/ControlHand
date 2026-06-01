@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
-import '../../../services/auto_socket_service.dart';
+import '../../../services/auto_state_polling_service.dart';
 import '../../../services/mobile_camera_relay_service.dart';
 import '../../../theme/app_theme.dart';
 

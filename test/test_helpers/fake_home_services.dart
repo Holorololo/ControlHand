@@ -4,11 +4,11 @@ import 'package:get/get.dart';
 import 'package:movilcontrol/app/data/models/auto_state.dart';
 import 'package:movilcontrol/app/modules/home/controllers/connection_controller.dart';
 import 'package:movilcontrol/app/modules/home/controllers/drive_session_controller.dart';
-import 'package:movilcontrol/app/services/auto_socket_service.dart';
+import 'package:movilcontrol/app/services/auto_state_polling_service.dart';
 import 'package:movilcontrol/app/services/backend_process_service.dart';
 import 'package:movilcontrol/app/services/mobile_camera_relay_service.dart';
 
-class FakeAutoSocketService extends AutoSocketService {
+class FakeAutoStatePollingService extends AutoStatePollingService {
   final Rx<SocketConnectionStatus> _status =
       SocketConnectionStatus.disconnected.obs;
   final Rxn<AutoState> _latestState = Rxn<AutoState>();

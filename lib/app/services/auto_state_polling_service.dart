@@ -9,7 +9,7 @@ import '../data/repositories/backend_api_repository.dart';
 
 enum SocketConnectionStatus { disconnected, connecting, connected }
 
-class AutoSocketService extends GetxService {
+class AutoStatePollingService extends GetxService {
   final Rx<SocketConnectionStatus> status =
       SocketConnectionStatus.disconnected.obs;
   final Rxn<AutoState> latestState = Rxn<AutoState>();

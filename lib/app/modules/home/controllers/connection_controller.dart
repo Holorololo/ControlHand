@@ -4,7 +4,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../../services/auto_socket_service.dart';
+import '../../../services/auto_state_polling_service.dart';
 import '../../../services/backend_process_service.dart';
 import '../../../services/mobile_camera_relay_service.dart';
 
@@ -26,7 +26,8 @@ class ConnectionController extends GetxController {
     defaultValue: 5000,
   );
 
-  final AutoSocketService _socketService = Get.find<AutoSocketService>();
+  final AutoStatePollingService _pollingService =
+      Get.find<AutoStatePollingService>();
   final BackendProcessService _backendProcessService =
       Get.find<BackendProcessService>();
   final MobileCameraRelayService _mobileCameraRelayService =
@@ -39,8 +40,8 @@ class ConnectionController extends GetxController {
     text: _backendPortOverride.toString(),
   );
 
-  Rx<SocketConnectionStatus> get connectionStatus => _socketService.status;
-  RxString get errorMessage => _socketService.errorMessage;
+  Rx<SocketConnectionStatus> get connectionStatus => _pollingService.status;
+  RxString get errorMessage => _pollingService.errorMessage;
   Rx<BackendRuntimeStatus> get backendRuntimeStatus =>
       _backendProcessService.status;
   RxString get backendInfoMessage => _backendProcessService.infoMessage;
@@ -163,9 +164,9 @@ class ConnectionController extends GetxController {
     }
 
     await _backendProcessService.ensureStarted(host: host, port: port);
-    await _socketService.connect(host: host, port: port);
+    await _pollingService.connect(host: host, port: port);
 
-    if (_socketService.status.value == SocketConnectionStatus.connected &&
+    if (_pollingService.status.value == SocketConnectionStatus.connected &&
         canUsePhoneCamera) {
       await _mobileCameraRelayService.startRelay(host: host, port: port);
     }
@@ -175,7 +176,7 @@ class ConnectionController extends GetxController {
     if (canUsePhoneCamera) {
       await _mobileCameraRelayService.stopRelay();
     }
-    await _socketService.disconnect();
+    await _pollingService.disconnect();
   }
 
   Future<void> toggleConnection() async {

@@ -1,5 +1,5 @@
 import '../../../data/models/auto_state.dart';
-import '../../../services/auto_socket_service.dart';
+import '../../../services/auto_state_polling_service.dart';
 import '../../../services/mobile_camera_relay_service.dart';
 import '../controllers/home_controller.dart';
 import 'home_presentation_models.dart';

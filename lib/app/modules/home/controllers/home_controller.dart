@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../data/models/auto_state.dart';
-import '../../../services/auto_socket_service.dart';
+import '../../../services/auto_state_polling_service.dart';
 import '../../../services/backend_process_service.dart';
 import '../../../services/mobile_camera_relay_service.dart';
 import 'connection_controller.dart';

@@ -8,7 +8,7 @@ import 'package:movilcontrol/app/modules/home/widgets/home_presentation_mapper.d
 import 'package:movilcontrol/app/modules/home/widgets/home_presentation_models.dart';
 import 'package:movilcontrol/app/modules/home/widgets/home_widget_support.dart';
 import 'package:movilcontrol/app/modules/home/widgets/mobile_preview_panel.dart';
-import 'package:movilcontrol/app/services/auto_socket_service.dart';
+import 'package:movilcontrol/app/services/auto_state_polling_service.dart';
 import 'package:movilcontrol/app/services/mobile_camera_relay_service.dart';
 
 void main() {

@@ -5,13 +5,14 @@ import 'package:camera/camera.dart';
 import 'package:get/get.dart';
 
 import '../../../data/models/auto_state.dart';
-import '../../../services/auto_socket_service.dart';
+import '../../../services/auto_state_polling_service.dart';
 import '../../../services/backend_process_service.dart';
 import '../../../services/mobile_camera_relay_service.dart';
 import 'connection_controller.dart';
 
 class DriveSessionController extends GetxController {
-  final AutoSocketService _socketService = Get.find<AutoSocketService>();
+  final AutoStatePollingService _pollingService =
+      Get.find<AutoStatePollingService>();
   final BackendProcessService _backendProcessService =
       Get.find<BackendProcessService>();
   final MobileCameraRelayService _mobileCameraRelayService =
@@ -21,8 +22,8 @@ class DriveSessionController extends GetxController {
 
   final RxBool isDiagnosticsVisible = false.obs;
 
-  Rxn<AutoState> get latestState => _socketService.latestState;
-  Rxn<DateTime> get lastPacketAt => _socketService.lastPacketAt;
+  Rxn<AutoState> get latestState => _pollingService.latestState;
+  Rxn<DateTime> get lastPacketAt => _pollingService.lastPacketAt;
   RxString get backendInfoMessage => _backendProcessService.infoMessage;
   RxString get backendRecentLog => _backendProcessService.recentLog;
   Rx<MobileCameraRelayStatus> get mobileCameraStatus =>
@@ -125,7 +126,7 @@ class DriveSessionController extends GetxController {
   }
 
   void prepareSessionExperience() {
-    _socketService.setPreviewStreamingEnabled(!isMobileClient);
+    _pollingService.setPreviewStreamingEnabled(!isMobileClient);
     if (showImmersiveMobileHome) {
       unawaited(_mobileCameraRelayService.preparePreview());
     }
@@ -133,12 +134,12 @@ class DriveSessionController extends GetxController {
 
   Future<void> openDiagnosticsPanel() async {
     isDiagnosticsVisible.value = true;
-    _socketService.setPreviewStreamingEnabled(true);
+    _pollingService.setPreviewStreamingEnabled(true);
   }
 
   void closeDiagnosticsPanel() {
     isDiagnosticsVisible.value = false;
-    _socketService.setPreviewStreamingEnabled(!isMobileClient);
+    _pollingService.setPreviewStreamingEnabled(!isMobileClient);
   }
 
   @override

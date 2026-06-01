@@ -6,7 +6,7 @@ import 'package:get/get.dart';
 import 'package:movilcontrol/app/data/models/auto_state.dart';
 import 'package:movilcontrol/app/modules/home/controllers/connection_controller.dart';
 import 'package:movilcontrol/app/modules/home/controllers/drive_session_controller.dart';
-import 'package:movilcontrol/app/services/auto_socket_service.dart';
+import 'package:movilcontrol/app/services/auto_state_polling_service.dart';
 import 'package:movilcontrol/app/services/backend_process_service.dart';
 import 'package:movilcontrol/app/services/mobile_camera_relay_service.dart';
 
@@ -38,7 +38,7 @@ void main() {
       expect(controller.packetLabel, 'Aun sin datos');
       expect(controller.cameraSummary, 'Esperando backend');
       expect(controller.statePreview, contains('"hand_detected": false'));
-      expect(services.socket.previewStreamingToggles, isEmpty);
+      expect(services.polling.previewStreamingToggles, isEmpty);
     });
 
     test('maps open hand to moving car and live preview summary', () {
@@ -57,8 +57,8 @@ void main() {
         previewHeight: 720,
       );
 
-      services.socket.latestState.value = state;
-      services.socket.lastPacketAt.value = state.timestamp;
+      services.polling.latestState.value = state;
+      services.polling.lastPacketAt.value = state.timestamp;
 
       expect(controller.handSummary, 'MANO ABIERTA');
       expect(controller.movementLabel, 'Auto avanzando');
@@ -83,7 +83,7 @@ void main() {
         backendMessage: 'Detenido por gesto',
       );
 
-      services.socket.latestState.value = state;
+      services.polling.latestState.value = state;
 
       expect(controller.handSummary, 'MANO CERRADA');
       expect(controller.movementLabel, 'Auto detenido');
@@ -104,7 +104,7 @@ void main() {
         backendMessage: 'Sin mano',
       );
 
-      Get.find<AutoSocketService>().latestState.value = state;
+      Get.find<AutoStatePollingService>().latestState.value = state;
 
       expect(controller.handSummary, 'No se detecta mano.');
       expect(controller.movementLabel, 'Auto detenido');
@@ -129,15 +129,15 @@ void main() {
         controller.prepareSessionExperience();
         expect(controller.showImmersiveMobileHome, isTrue);
         expect(services.mobile.preparePreviewCallCount, 1);
-        expect(services.socket.previewStreamingToggles, <bool>[false]);
+        expect(services.polling.previewStreamingToggles, <bool>[false]);
 
         await controller.openDiagnosticsPanel();
         expect(controller.isDiagnosticsVisible.value, isTrue);
-        expect(services.socket.previewStreamingToggles.last, isTrue);
+        expect(services.polling.previewStreamingToggles.last, isTrue);
 
         controller.closeDiagnosticsPanel();
         expect(controller.isDiagnosticsVisible.value, isFalse);
-        expect(services.socket.previewStreamingToggles.last, isFalse);
+        expect(services.polling.previewStreamingToggles.last, isFalse);
       },
     );
 
@@ -154,9 +154,9 @@ void main() {
         backendMessage: '',
       );
 
-      services.socket.latestState.value = state;
-      services.socket.lastPacketAt.value = state.timestamp;
-      services.socket.status.value = SocketConnectionStatus.connected;
+      services.polling.latestState.value = state;
+      services.polling.lastPacketAt.value = state.timestamp;
+      services.polling.status.value = SocketConnectionStatus.connected;
 
       expect(controller.packetLabel, '12:34:56');
       expect(
@@ -170,16 +170,16 @@ void main() {
 }
 
 _RegisteredDriveServices _registerServices() {
-  final socket = FakeAutoSocketService();
+  final polling = FakeAutoStatePollingService();
   final backend = FakeBackendProcessService();
   final mobile = FakeMobileCameraRelayService();
 
-  Get.put<AutoSocketService>(socket);
+  Get.put<AutoStatePollingService>(polling);
   Get.put<BackendProcessService>(backend);
   Get.put<MobileCameraRelayService>(mobile);
 
   return _RegisteredDriveServices(
-    socket: socket,
+    polling: polling,
     backend: backend,
     mobile: mobile,
   );
@@ -187,12 +187,12 @@ _RegisteredDriveServices _registerServices() {
 
 class _RegisteredDriveServices {
   const _RegisteredDriveServices({
-    required this.socket,
+    required this.polling,
     required this.backend,
     required this.mobile,
   });
 
-  final FakeAutoSocketService socket;
+  final FakeAutoStatePollingService polling;
   final FakeBackendProcessService backend;
   final FakeMobileCameraRelayService mobile;
 }
