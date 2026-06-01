@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 
 import '../data/models/auto_state.dart';
+import '../data/repositories/backend_api_repository.dart';
 
 enum SocketConnectionStatus { disconnected, connecting, connected }
 
@@ -17,6 +17,7 @@ class AutoSocketService extends GetxService {
   final Rxn<DateTime> lastPacketAt = Rxn<DateTime>();
 
   http.Client? _client;
+  BackendApiRepository? _backendApiRepository;
   Timer? _pollTimer;
   Timer? _reconnectTimer;
   bool _manualDisconnect = false;
@@ -51,15 +52,13 @@ class AutoSocketService extends GetxService {
     await _closeConnection();
     status.value = SocketConnectionStatus.connecting;
     _client = http.Client();
+    _backendApiRepository = BackendApiRepository(
+      client: _client!,
+      baseUrl: baseUrl,
+    );
 
     try {
-      final healthResponse = await _client!
-          .get(Uri.parse('$baseUrl/health'))
-          .timeout(const Duration(seconds: 4));
-
-      if (healthResponse.statusCode != 200) {
-        throw Exception('Estado HTTP ${healthResponse.statusCode}');
-      }
+      await _backendApiRepository!.getHealth();
 
       status.value = SocketConnectionStatus.connected;
       await _pollBackend();
@@ -78,33 +77,19 @@ class AutoSocketService extends GetxService {
   }
 
   Future<void> _pollBackend() async {
-    if (_manualDisconnect || _pollInProgress || _client == null) {
+    if (_manualDisconnect || _pollInProgress || _backendApiRepository == null) {
       return;
     }
 
     _pollInProgress = true;
 
     try {
-      final stateResponse = await _client!
-          .get(Uri.parse('$baseUrl/state'))
-          .timeout(const Duration(seconds: 4));
-
-      if (stateResponse.statusCode != 200) {
-        throw Exception('Estado HTTP ${stateResponse.statusCode}');
-      }
-
-      final decoded = jsonDecode(stateResponse.body);
-      if (decoded is! Map<String, dynamic>) {
-        throw const FormatException('El backend envio un JSON inesperado.');
-      }
-
-      final previewVersion = (decoded['camera_preview_version'] as num?)
-          ?.toInt();
-      final previewAvailable = decoded['camera_preview_available'] == true;
+      final snapshot = await _backendApiRepository!.getState();
+      final previewVersion = snapshot.cameraPreviewVersion;
+      final previewAvailable = snapshot.cameraPreviewAvailable;
       if (_previewStreamingEnabled) {
-        _lastPreviewWidth = (decoded['camera_preview_width'] as num?)?.toInt();
-        _lastPreviewHeight = (decoded['camera_preview_height'] as num?)
-            ?.toInt();
+        _lastPreviewWidth = snapshot.cameraPreviewWidth;
+        _lastPreviewHeight = snapshot.cameraPreviewHeight;
 
         if (previewAvailable &&
             (previewVersion == null ||
@@ -118,8 +103,8 @@ class AutoSocketService extends GetxService {
         _clearPreviewCache();
       }
 
-      final state = AutoState.fromJson(
-        decoded,
+      final state = AutoState.fromSnapshotDto(
+        snapshot,
         previewBytes: _lastPreviewBytes,
         previewWidth: _lastPreviewWidth,
         previewHeight: _lastPreviewHeight,
@@ -137,21 +122,16 @@ class AutoSocketService extends GetxService {
   }
 
   Future<void> _refreshPreview(int? previewVersion) async {
-    if (_client == null) {
+    if (_backendApiRepository == null) {
       return;
     }
 
-    final previewUri = Uri.parse(
-      '$baseUrl/camera.jpg?v=${previewVersion ?? DateTime.now().millisecondsSinceEpoch}',
+    final previewBytes = await _backendApiRepository!.getPreview(
+      version: previewVersion,
     );
 
-    final previewResponse = await _client!
-        .get(previewUri)
-        .timeout(const Duration(seconds: 4));
-
-    if (previewResponse.statusCode == 200 &&
-        previewResponse.bodyBytes.isNotEmpty) {
-      _lastPreviewBytes = Uint8List.fromList(previewResponse.bodyBytes);
+    if (previewBytes != null && previewBytes.isNotEmpty) {
+      _lastPreviewBytes = previewBytes;
       _lastPreviewVersion = previewVersion;
     }
   }
@@ -216,6 +196,7 @@ class AutoSocketService extends GetxService {
     _reconnectTimer?.cancel();
     _client?.close();
     _client = null;
+    _backendApiRepository = null;
   }
 
   void _clearPreviewCache() {

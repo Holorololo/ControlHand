@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import '../dtos/backend_snapshot_dto.dart';
+
 class AutoState {
   const AutoState({
     required this.timestamp,
@@ -43,29 +45,35 @@ class AutoState {
     int? previewWidth,
     int? previewHeight,
   }) {
-    final timestampSeconds = (json['timestamp'] as num?)?.toDouble() ?? 0;
-    final milliseconds = (timestampSeconds * 1000).round();
-
-    return AutoState(
-      timestamp: DateTime.fromMillisecondsSinceEpoch(
-        milliseconds,
-        isUtc: true,
-      ).toLocal(),
-      handDetected: json['hand_detected'] == true,
-      handState: (json['hand_state'] as String?) ?? 'Sin estado',
-      fingersUp: (json['fingers_up'] as num?)?.toInt() ?? 0,
-      carMoving: json['car_moving'] == true,
-      carX: (json['car_x'] as num?)?.toDouble() ?? 50,
-      carY: (json['car_y'] as num?)?.toDouble() ?? 350,
-      speed: (json['speed'] as num?)?.toInt() ?? 0,
-      backendReady: json['backend_ready'] == true,
-      backendMessage: (json['backend_message'] as String?) ?? '',
-      backendLastError: (json['backend_last_error'] as String?) ?? '',
+    return AutoState.fromSnapshotDto(
+      BackendSnapshotDto.fromJson(json),
       previewBytes: previewBytes,
-      cameraFrameWidth:
-          previewWidth ?? (json['camera_preview_width'] as num?)?.toInt(),
-      cameraFrameHeight:
-          previewHeight ?? (json['camera_preview_height'] as num?)?.toInt(),
+      previewWidth: previewWidth,
+      previewHeight: previewHeight,
+    );
+  }
+
+  factory AutoState.fromSnapshotDto(
+    BackendSnapshotDto snapshot, {
+    Uint8List? previewBytes,
+    int? previewWidth,
+    int? previewHeight,
+  }) {
+    return AutoState(
+      timestamp: snapshot.timestamp,
+      handDetected: snapshot.handDetected,
+      handState: snapshot.handState,
+      fingersUp: snapshot.fingersUp,
+      carMoving: snapshot.carMoving,
+      carX: snapshot.carX,
+      carY: snapshot.carY,
+      speed: snapshot.speed,
+      backendReady: snapshot.backendReady,
+      backendMessage: snapshot.backendMessage,
+      backendLastError: snapshot.backendLastError,
+      previewBytes: previewBytes,
+      cameraFrameWidth: previewWidth ?? snapshot.cameraPreviewWidth,
+      cameraFrameHeight: previewHeight ?? snapshot.cameraPreviewHeight,
     );
   }
 

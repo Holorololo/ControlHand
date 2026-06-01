@@ -6,15 +6,15 @@ import 'package:movilcontrol/app/app.dart';
 void main() {
   tearDown(Get.reset);
 
-  testWidgets('renders dashboard shell without backend', (
+  testWidgets('renders desktop shell without backend', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const MovilControlApp(autoConnect: false));
 
-    expect(find.text('MovilControl'), findsOneWidget);
-    expect(find.text('Conexion local'), findsOneWidget);
-    expect(find.text('Camara y deteccion'), findsOneWidget);
-    expect(find.text('Pista del auto'), findsOneWidget);
+    expect(find.text('MOVILCONTROL // NEON DRIVE'), findsOneWidget);
+    expect(find.text('Centro de control'), findsOneWidget);
+    expect(find.text('Preview procesado'), findsOneWidget);
+    expect(find.text('Estado del auto'), findsOneWidget);
     expect(find.text('Conectar'), findsOneWidget);
   });
 }
