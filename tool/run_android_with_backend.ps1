@@ -38,7 +38,7 @@ function Wait-ForBackend {
 
 $projectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $pythonExe = Join-Path $projectRoot "venv\Scripts\python.exe"
-$backendScript = Join-Path $projectRoot "lib\assets\proyectoauto\main.py"
+$backendScript = Join-Path $projectRoot "backend\backend.py"
 $adbExe = Join-Path $env:LOCALAPPDATA "Android\sdk\platform-tools\adb.exe"
 $backendUrl = "http://127.0.0.1:$backendPort"
 

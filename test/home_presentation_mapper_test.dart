@@ -310,7 +310,7 @@ HomePresentationInput _buildInput({
   bool isConnecting = false,
   bool isConnected = true,
   bool canRestartManagedBackend = true,
-  String backendCommand = r'.\venv\Scripts\python.exe main.py',
+  String backendCommand = r'.\venv\Scripts\python.exe backend\backend.py',
   String backendRecentLog = 'Backend arriba',
   String backendInfoMessage = '',
   String statePreview = '{"hand_detected": true}',

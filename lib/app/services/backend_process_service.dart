@@ -84,14 +84,14 @@ class BackendProcessService extends GetxService {
 
     _startInProgress = true;
     status.value = BackendRuntimeStatus.locating;
-    infoMessage.value = 'Buscando Python y proyectoauto dentro del proyecto...';
+    infoMessage.value = 'Buscando Python y backend dentro del proyecto...';
 
     try {
       final launchConfig = _resolveLaunchConfig();
       if (launchConfig == null) {
         status.value = BackendRuntimeStatus.unavailable;
         infoMessage.value =
-            'No se encontro un entorno Python valido ni el script proyectoauto.';
+            'No se encontro un entorno Python valido ni el script backend.';
         return;
       }
 
@@ -232,12 +232,7 @@ class BackendProcessService extends GetxService {
       }
 
       final scriptFile = File(
-        _join(projectRoot.path, <String>[
-          'lib',
-          'assets',
-          'proyectoauto',
-          'main.py',
-        ]),
+        _join(projectRoot.path, <String>['backend', 'backend.py']),
       );
 
       if (!scriptFile.existsSync()) {
@@ -280,12 +275,7 @@ class BackendProcessService extends GetxService {
     while (current != null) {
       final pubspec = File(_join(current.path, <String>['pubspec.yaml']));
       final backendScript = File(
-        _join(current.path, <String>[
-          'lib',
-          'assets',
-          'proyectoauto',
-          'main.py',
-        ]),
+        _join(current.path, <String>['backend', 'backend.py']),
       );
 
       if (pubspec.existsSync() && backendScript.existsSync()) {

@@ -14,9 +14,9 @@ class ConnectionController extends GetxController {
   final bool autoConnect;
 
   static const String desktopBackendCommand =
-      r'.\venv\Scripts\python.exe lib\assets\proyectoauto\main.py --mode backend --input-source desktop --host 0.0.0.0 --port 5000';
+      r'.\venv\Scripts\python.exe backend\backend.py --mode backend --input-source desktop --host 0.0.0.0 --port 5000';
   static const String mobileBackendCommand =
-      r'.\venv\Scripts\python.exe lib\assets\proyectoauto\main.py --mode backend --input-source mobile --host 0.0.0.0 --port 5000';
+      r'.\venv\Scripts\python.exe backend\backend.py --mode backend --input-source mobile --host 0.0.0.0 --port 5000';
   static const String _backendHostOverride = String.fromEnvironment(
     'BACKEND_HOST',
     defaultValue: '',

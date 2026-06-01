@@ -11,10 +11,10 @@ La arquitectura ya soporta estos escenarios:
 
 ## Arquitectura
 
-- `lib/assets/proyectoauto/`: backend Python con OpenCV + MediaPipe + Flask.
-- `lib/app/services/auto_socket_service.dart`: cliente HTTP, polling, preview y reconexion.
+- `backend/`: backend Python con OpenCV + MediaPipe + Flask.
+- `lib/app/services/auto_state_polling_service.dart`: cliente HTTP, polling, preview y reconexion.
 - `lib/app/modules/home/controllers/home_controller.dart`: estado reactivo con GetX.
-- `lib/app/modules/home/views/home_view.dart`: dashboard, camara en vivo y simulacion del auto en Flutter.
+- `lib/app/modules/home/views/home_view.dart`: pantalla principal que compone el dashboard Flutter.
 
 ## Endpoints del backend
 
@@ -41,7 +41,7 @@ flutter run -d windows
 Si el host es `127.0.0.1`, Flutter intentara arrancar el backend automaticamente con:
 
 ```powershell
-.\venv\Scripts\python.exe lib\assets\proyectoauto\main.py --mode backend --host 0.0.0.0 --port 5000
+.\venv\Scripts\python.exe backend\backend.py --mode backend --host 0.0.0.0 --port 5000
 ```
 
 2. En `Android fisico` por USB, usa este lanzador:
@@ -60,7 +60,7 @@ Ese script:
 3. Si prefieres iniciar el backend manualmente en tu PC:
 
 ```powershell
-.\venv\Scripts\python.exe lib\assets\proyectoauto\main.py --mode backend --input-source mobile --host 0.0.0.0 --port 5000
+.\venv\Scripts\python.exe backend\backend.py --mode backend --input-source mobile --host 0.0.0.0 --port 5000
 ```
 
 Tambien puedes usar el helper que lo deja listo para celular por Wi-Fi y te muestra la IP correcta:
@@ -72,7 +72,7 @@ Tambien puedes usar el helper que lo deja listo para celular por Wi-Fi y te mues
 4. Si quieres abrir tambien las ventanas de OpenCV:
 
 ```powershell
-.\venv\Scripts\python.exe lib\assets\proyectoauto\main.py --mode both --input-source mobile --host 0.0.0.0 --port 5000
+.\venv\Scripts\python.exe backend\backend.py --mode both --input-source mobile --host 0.0.0.0 --port 5000
 ```
 
 ## Conectar desde movil

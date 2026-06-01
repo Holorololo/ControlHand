@@ -67,7 +67,7 @@ function Get-LanIPv4Addresses {
 
 $projectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $pythonExe = Join-Path $projectRoot "venv\Scripts\python.exe"
-$backendScript = Join-Path $projectRoot "lib\assets\proyectoauto\main.py"
+$backendScript = Join-Path $projectRoot "backend\backend.py"
 $backendUrl = "http://127.0.0.1:$Port"
 $backendMode = if ($ShowWindows) { "both" } else { "backend" }
 
