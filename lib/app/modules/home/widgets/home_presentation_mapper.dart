@@ -180,6 +180,7 @@ class HomePresentationMapper {
       handDetected: state.handDetected,
       cameraSummary: controller.cameraSummary,
       previewAspectRatio: state.previewAspectRatio,
+      previewCacheWidth: state.cameraFrameWidth,
       hasCameraPreview: state.hasCameraPreview,
       previewBytes: state.previewBytes,
     );
@@ -256,6 +257,7 @@ class HomePresentationMapper {
       handDetected: _input.state.handDetected,
       cameraSummary: _input.cameraSummary,
       previewAspectRatio: _input.state.previewAspectRatio,
+      previewCacheWidth: _input.state.cameraFrameWidth,
       hasCameraPreview: _input.state.hasCameraPreview,
       previewBytes: _input.state.previewBytes,
     );

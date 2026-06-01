@@ -211,6 +211,7 @@ class ProcessedPreviewViewModel {
     required this.statusTone,
     required this.cameraSummary,
     required this.previewAspectRatio,
+    required this.previewCacheWidth,
     required this.hasCameraPreview,
     required this.previewBytes,
   });
@@ -219,6 +220,7 @@ class ProcessedPreviewViewModel {
     required bool handDetected,
     required String cameraSummary,
     required double previewAspectRatio,
+    required int? previewCacheWidth,
     required bool hasCameraPreview,
     required Uint8List? previewBytes,
   }) {
@@ -227,6 +229,7 @@ class ProcessedPreviewViewModel {
       statusTone: handDetected ? HomeTone.good : HomeTone.soft,
       cameraSummary: cameraSummary,
       previewAspectRatio: previewAspectRatio,
+      previewCacheWidth: previewCacheWidth,
       hasCameraPreview: hasCameraPreview,
       previewBytes: previewBytes,
     );
@@ -236,6 +239,7 @@ class ProcessedPreviewViewModel {
   final HomeTone statusTone;
   final String cameraSummary;
   final double previewAspectRatio;
+  final int? previewCacheWidth;
   final bool hasCameraPreview;
   final Uint8List? previewBytes;
 }

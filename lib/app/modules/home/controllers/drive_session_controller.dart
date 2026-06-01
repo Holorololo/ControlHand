@@ -11,6 +11,8 @@ import '../../../services/mobile_camera_relay_service.dart';
 import 'connection_controller.dart';
 
 class DriveSessionController extends GetxController {
+  static const JsonEncoder _statePreviewEncoder = JsonEncoder.withIndent('  ');
+
   final AutoStatePollingService _pollingService =
       Get.find<AutoStatePollingService>();
   final BackendProcessService _backendProcessService =
@@ -21,6 +23,8 @@ class DriveSessionController extends GetxController {
       Get.find<ConnectionController>();
 
   final RxBool isDiagnosticsVisible = false.obs;
+  AutoState? _cachedStatePreviewState;
+  String? _cachedStatePreview;
 
   Rxn<AutoState> get latestState => _pollingService.latestState;
   Rxn<DateTime> get lastPacketAt => _pollingService.lastPacketAt;
@@ -88,8 +92,16 @@ class DriveSessionController extends GetxController {
   }
 
   String get statePreview {
-    const encoder = JsonEncoder.withIndent('  ');
-    return encoder.convert(effectiveState.toJson());
+    final state = effectiveState;
+    if (identical(state, _cachedStatePreviewState) &&
+        _cachedStatePreview != null) {
+      return _cachedStatePreview!;
+    }
+
+    final preview = _statePreviewEncoder.convert(state.toJson());
+    _cachedStatePreviewState = state;
+    _cachedStatePreview = preview;
+    return preview;
   }
 
   String get cameraSummary {

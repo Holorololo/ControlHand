@@ -18,6 +18,7 @@ AUTO_Y = 350
 AUTO_SPEED = 8
 PREVIEW_STREAM_WIDTH = 480
 PREVIEW_JPEG_QUALITY = 70
+PROCESSING_MAX_WIDTH = 640
 DEFAULT_HTTP_PORT = 5000
 
 WINDOW_HAND = "Camara y Mano"
@@ -72,6 +73,7 @@ class GestureAutoBackend:
         stable_frames=3,
         preview_stream_width=PREVIEW_STREAM_WIDTH,
         preview_jpeg_quality=PREVIEW_JPEG_QUALITY,
+        processing_max_width=PROCESSING_MAX_WIDTH,
     ):
         self.camera_index = camera_index
         self.camera_width = camera_width
@@ -80,6 +82,7 @@ class GestureAutoBackend:
         self.stable_frames = max(1, stable_frames)
         self.preview_stream_width = max(0, preview_stream_width)
         self.preview_jpeg_quality = max(30, min(95, preview_jpeg_quality))
+        self.processing_max_width = max(0, processing_max_width)
 
         self.auto_x = AUTO_START_X
         self.auto_y = AUTO_Y
@@ -368,9 +371,26 @@ class GestureAutoBackend:
 
         return frame
 
+    def resize_for_processing(self, frame):
+        if self.processing_max_width <= 0:
+            return frame
+
+        source_height, source_width = frame.shape[:2]
+        if source_width <= self.processing_max_width:
+            return frame
+
+        scale = self.processing_max_width / float(source_width)
+        target_height = max(1, int(source_height * scale))
+        return cv2.resize(
+            frame,
+            (self.processing_max_width, target_height),
+            interpolation=cv2.INTER_AREA,
+        )
+
     def process_frame(self, frame):
         frame = cv2.flip(frame, 1)
         frame = self.fit_frame_to_canvas(frame)
+        frame = self.resize_for_processing(frame)
 
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.hands.process(rgb)
@@ -759,6 +779,12 @@ def parse_args():
         default=3,
         help="Frames consecutivos requeridos antes de cambiar el estado de la mano.",
     )
+    parser.add_argument(
+        "--processing-width",
+        type=int,
+        default=PROCESSING_MAX_WIDTH,
+        help="Ancho maximo usado para procesar la mano antes de MediaPipe. Usa 0 para no reescalar.",
+    )
     return parser.parse_args()
 
 
@@ -771,6 +797,7 @@ def build_backend(args):
         stable_frames=args.stable_frames,
         preview_stream_width=args.preview_width,
         preview_jpeg_quality=args.preview_quality,
+        processing_max_width=args.processing_width,
     )
 
 

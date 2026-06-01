@@ -161,7 +161,10 @@ class ProcessedPreviewPanel extends StatelessWidget {
                   ),
                 ),
                 child: viewModel.hasCameraPreview
-                    ? PreviewImage(bytes: viewModel.previewBytes!)
+                    ? PreviewImage(
+                        bytes: viewModel.previewBytes!,
+                        cacheWidth: viewModel.previewCacheWidth,
+                      )
                     : const CameraWaitingSurface(
                         title: 'Preview remoto en espera',
                         message:

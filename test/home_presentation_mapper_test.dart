@@ -242,6 +242,7 @@ void main() {
         handDetected: false,
         cameraSummary: 'Esperando primer preview procesado.',
         previewAspectRatio: 4 / 3,
+        previewCacheWidth: null,
         hasCameraPreview: false,
         previewBytes: null,
       );

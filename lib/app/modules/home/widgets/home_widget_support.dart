@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
+import '../../../config/performance_config.dart';
 import '../../../services/auto_state_polling_service.dart';
 import '../../../services/mobile_camera_relay_service.dart';
 import '../../../theme/app_theme.dart';
@@ -539,29 +540,39 @@ class LiveCameraFill extends StatelessWidget {
     final width = previewSize?.height ?? 720;
     final height = previewSize?.width ?? 1280;
 
-    return FittedBox(
-      fit: BoxFit.cover,
-      child: SizedBox(
-        width: width,
-        height: height,
-        child: CameraPreview(controller),
+    return RepaintBoundary(
+      child: FittedBox(
+        fit: BoxFit.cover,
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: CameraPreview(controller),
+        ),
       ),
     );
   }
 }
 
 class PreviewImage extends StatelessWidget {
-  const PreviewImage({required this.bytes, super.key});
+  const PreviewImage({required this.bytes, this.cacheWidth, super.key});
 
   final Uint8List bytes;
+  final int? cacheWidth;
 
   @override
   Widget build(BuildContext context) {
-    return Image.memory(
-      bytes,
-      fit: BoxFit.cover,
-      gaplessPlayback: true,
-      filterQuality: FilterQuality.medium,
+    final normalizedCacheWidth = cacheWidth == null || cacheWidth! <= 0
+        ? PerformanceConfig.previewImageCacheWidth
+        : cacheWidth!;
+
+    return RepaintBoundary(
+      child: Image.memory(
+        bytes,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.low,
+        cacheWidth: normalizedCacheWidth,
+      ),
     );
   }
 }

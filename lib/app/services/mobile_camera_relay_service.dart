@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
+import '../config/performance_config.dart';
 import '../data/repositories/backend_api_repository.dart';
 
 enum MobileCameraRelayStatus {
@@ -27,8 +28,9 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
   final RxString infoMessage = ''.obs;
   final Rxn<DateTime> lastFrameSentAt = Rxn<DateTime>();
 
-  final Duration _frameInterval = const Duration(milliseconds: 320);
-  static const int _frameJpegQuality = 90;
+  final Duration _frameInterval = const Duration(
+    milliseconds: PerformanceConfig.frameSendIntervalMs,
+  );
 
   CameraController? _controller;
   CameraDescription? _selectedCamera;
@@ -37,6 +39,9 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
   String? _baseUrl;
   bool _streamRequested = false;
   bool _uploadInProgress = false;
+  int _uploadedFrameCount = 0;
+  int _failedFrameCount = 0;
+  int _droppedBusyFrameCount = 0;
 
   bool get supported => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
@@ -81,6 +86,10 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
       client: _client!,
       baseUrl: _baseUrl!,
     );
+    _uploadedFrameCount = 0;
+    _failedFrameCount = 0;
+    _droppedBusyFrameCount = 0;
+    lastFrameSentAt.value = null;
 
     await _ensureCameraReady();
 
@@ -102,6 +111,7 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
     _streamRequested = false;
     _baseUrl = null;
     _backendApiRepository = null;
+    _uploadInProgress = false;
 
     final cameraController = _controller;
     if (cameraController != null && cameraController.value.isStreamingImages) {
@@ -155,7 +165,7 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
             );
       final controller = CameraController(
         selectedCamera,
-        ResolutionPreset.high,
+        PerformanceConfig.mobileCameraResolutionPreset,
         enableAudio: false,
         imageFormatGroup: Platform.isIOS
             ? ImageFormatGroup.bgra8888
@@ -197,7 +207,12 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
   }
 
   void _handleCameraImage(CameraImage image) {
-    if (!_streamRequested || _uploadInProgress || _baseUrl == null) {
+    if (!_streamRequested || _baseUrl == null) {
+      return;
+    }
+
+    if (_uploadInProgress) {
+      _droppedBusyFrameCount++;
       return;
     }
 
@@ -307,7 +322,32 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
 
   Uint8List _encodeNormalizedJpeg(img.Image image) {
     final normalizedImage = _normalizeFrameOrientation(image);
-    return img.encodeJpg(normalizedImage, quality: _frameJpegQuality);
+    final resizedImage = _resizeForUpload(normalizedImage);
+    return img.encodeJpg(resizedImage, quality: PerformanceConfig.jpegQuality);
+  }
+
+  img.Image _resizeForUpload(img.Image image) {
+    final sourceWidth = image.width;
+    final sourceHeight = image.height;
+    final maxWidth = PerformanceConfig.maxFrameWidth;
+    final maxHeight = PerformanceConfig.maxFrameHeight;
+
+    if (sourceWidth <= maxWidth && sourceHeight <= maxHeight) {
+      return image;
+    }
+
+    final widthScale = maxWidth / sourceWidth;
+    final heightScale = maxHeight / sourceHeight;
+    final scale = widthScale < heightScale ? widthScale : heightScale;
+    final resizedWidth = ((sourceWidth * scale).round()).clamp(1, maxWidth);
+    final resizedHeight = ((sourceHeight * scale).round()).clamp(1, maxHeight);
+
+    return img.copyResize(
+      image,
+      width: resizedWidth,
+      height: resizedHeight,
+      interpolation: img.Interpolation.average,
+    );
   }
 
   img.Image _normalizeFrameOrientation(img.Image image) {
@@ -353,6 +393,8 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
   }
 
   Future<void> _uploadFrame(Uint8List jpegBytes) async {
+    final stopwatch = Stopwatch()..start();
+
     try {
       final backendApiRepository = _backendApiRepository;
       if (backendApiRepository == null) {
@@ -363,16 +405,44 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
       }
 
       await backendApiRepository.sendFrame(jpegBytes);
+      _uploadedFrameCount++;
       status.value = MobileCameraRelayStatus.streaming;
       infoMessage.value =
           'Camara del celular activa. Backend procesando frames remotos.';
+      _logFrameMetrics(stopwatch.elapsed);
     } catch (error) {
+      _failedFrameCount++;
       status.value = MobileCameraRelayStatus.failed;
       infoMessage.value =
           'No se pudo enviar el frame al backend. ${error.toString()}';
+      if (kDebugMode) {
+        debugPrint(
+          'MobileCameraRelayService -> frame failed after '
+          '${stopwatch.elapsedMilliseconds}ms '
+          '(errors=$_failedFrameCount, dropped=$_droppedBusyFrameCount)',
+        );
+      }
     } finally {
       _uploadInProgress = false;
     }
+  }
+
+  void _logFrameMetrics(Duration elapsed) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    if (_uploadedFrameCount % PerformanceConfig.performanceLogSampleSize != 0) {
+      return;
+    }
+
+    debugPrint(
+      'MobileCameraRelayService -> frames=$_uploadedFrameCount '
+      'last=${elapsed.inMilliseconds}ms '
+      'failed=$_failedFrameCount dropped=$_droppedBusyFrameCount '
+      'quality=${PerformanceConfig.jpegQuality} '
+      'limit=${PerformanceConfig.maxFrameWidth}x${PerformanceConfig.maxFrameHeight}',
+    );
   }
 
   String _normalizeBaseUrl(String host, int port) {

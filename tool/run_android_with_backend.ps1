@@ -73,9 +73,11 @@ try {
                 "--port",
                 "$backendPort",
                 "--preview-width",
-                "0",
+                "480",
                 "--preview-quality",
-                "90"
+                "65",
+                "--processing-width",
+                "640"
             ) `
             -WorkingDirectory $projectRoot `
             -PassThru `
