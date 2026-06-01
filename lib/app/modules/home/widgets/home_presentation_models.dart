@@ -1,9 +1,13 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import 'home_widget_support.dart';
 
 class ConnectionStatusViewModel {
   const ConnectionStatusViewModel._({
+    required this.statusLabel,
+    required this.statusTone,
     required this.intro,
     required this.hostHelperText,
     required this.portHelperText,
@@ -22,6 +26,8 @@ class ConnectionStatusViewModel {
   });
 
   factory ConnectionStatusViewModel({
+    required String statusLabel,
+    required HomeTone statusTone,
     required String intro,
     required bool isMobileClient,
     required String phoneCameraStatusLabel,
@@ -36,6 +42,8 @@ class ConnectionStatusViewModel {
     required bool canRestartManagedBackend,
   }) {
     return ConnectionStatusViewModel._(
+      statusLabel: statusLabel,
+      statusTone: statusTone,
       intro: intro,
       hostHelperText: isMobileClient
           ? 'Usa la IP LAN de tu PC o adb reverse'
@@ -58,6 +66,8 @@ class ConnectionStatusViewModel {
     );
   }
 
+  final String statusLabel;
+  final HomeTone statusTone;
   final String intro;
   final String hostHelperText;
   final String portHelperText;
@@ -191,4 +201,39 @@ class CarStatusViewModel {
   final double carProgress;
   final bool isMoving;
   final String errorMessage;
+}
+
+class ProcessedPreviewViewModel {
+  const ProcessedPreviewViewModel._({
+    required this.statusLabel,
+    required this.statusTone,
+    required this.cameraSummary,
+    required this.previewAspectRatio,
+    required this.hasCameraPreview,
+    required this.previewBytes,
+  });
+
+  factory ProcessedPreviewViewModel({
+    required bool handDetected,
+    required String cameraSummary,
+    required double previewAspectRatio,
+    required bool hasCameraPreview,
+    required Uint8List? previewBytes,
+  }) {
+    return ProcessedPreviewViewModel._(
+      statusLabel: handDetected ? 'Seguimiento activo' : 'Esperando mano',
+      statusTone: handDetected ? HomeTone.good : HomeTone.soft,
+      cameraSummary: cameraSummary,
+      previewAspectRatio: previewAspectRatio,
+      hasCameraPreview: hasCameraPreview,
+      previewBytes: previewBytes,
+    );
+  }
+
+  final String statusLabel;
+  final HomeTone statusTone;
+  final String cameraSummary;
+  final double previewAspectRatio;
+  final bool hasCameraPreview;
+  final Uint8List? previewBytes;
 }

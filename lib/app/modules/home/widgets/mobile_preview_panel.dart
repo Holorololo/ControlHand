@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 
-import '../../../data/models/auto_state.dart';
 import 'hand_status_panel.dart';
 import 'home_presentation_models.dart';
 import 'home_widget_support.dart';
@@ -85,14 +84,9 @@ class MobilePreviewPanel extends StatelessWidget {
 }
 
 class ProcessedPreviewPanel extends StatelessWidget {
-  const ProcessedPreviewPanel({
-    required this.state,
-    required this.cameraSummary,
-    super.key,
-  });
+  const ProcessedPreviewPanel({required this.viewModel, super.key});
 
-  final AutoState state;
-  final String cameraSummary;
+  final ProcessedPreviewViewModel viewModel;
 
   @override
   Widget build(BuildContext context) {
@@ -108,20 +102,21 @@ class ProcessedPreviewPanel extends StatelessWidget {
               ),
               const Spacer(),
               StatusDotChip(
-                label: state.handDetected
-                    ? 'Seguimiento activo'
-                    : 'Esperando mano',
-                tone: state.handDetected ? HomeTone.good : HomeTone.soft,
+                label: viewModel.statusLabel,
+                tone: viewModel.statusTone,
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(cameraSummary, style: Theme.of(context).textTheme.bodyMedium),
+          Text(
+            viewModel.cameraSummary,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
           const SizedBox(height: 16),
           ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: AspectRatio(
-              aspectRatio: state.previewAspectRatio,
+              aspectRatio: viewModel.previewAspectRatio,
               child: DecoratedBox(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
@@ -130,8 +125,8 @@ class ProcessedPreviewPanel extends StatelessWidget {
                     end: Alignment.bottomCenter,
                   ),
                 ),
-                child: state.hasCameraPreview
-                    ? PreviewImage(bytes: state.previewBytes!)
+                child: viewModel.hasCameraPreview
+                    ? PreviewImage(bytes: viewModel.previewBytes!)
                     : const CameraWaitingSurface(
                         title: 'Preview remoto en espera',
                         message:

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../../data/models/auto_state.dart';
 import '../../../theme/app_theme.dart';
 import '../controllers/home_controller.dart';
 import 'backend_status_panel.dart';
@@ -9,6 +8,7 @@ import 'car_status_panel.dart';
 import 'connection_panel.dart';
 import 'control_buttons_panel.dart';
 import 'hand_status_panel.dart';
+import 'home_presentation_mapper.dart';
 import 'home_presentation_models.dart';
 import 'home_widget_support.dart';
 import 'mobile_preview_panel.dart';
@@ -58,46 +58,13 @@ class MobileHomeLayout extends StatelessWidget {
             SafeArea(
               child: Obx(() {
                 final state = controller.effectiveState;
-                final statusLabel = controller.statusLabel;
-                final statusTone = connectionTone(
-                  controller.connectionStatus.value,
+                final presentation = HomePresentationMapper(
+                  controller: controller,
+                  state: state,
                 );
-                final connectionViewModel = ConnectionStatusViewModel(
-                  intro: controller.connectionIntro,
-                  isMobileClient: controller.isMobileClient,
-                  phoneCameraStatusLabel: controller.phoneCameraStatusLabel,
-                  phoneCameraTone: cameraTone(
-                    controller.mobileCameraStatus.value,
-                  ),
-                  backendStatusLabel: controller.backendStatusLabel,
-                  backendStatusTone: backendTone(controller.backendStatusLabel),
-                  endpointLabel: controller.endpointLabel,
-                  connectionHint: controller.connectionHint,
-                  backendActionHint: controller.backendActionHint,
-                  isConnecting: controller.isConnecting,
-                  isConnected: controller.isConnected,
-                  canRestartManagedBackend: controller.canRestartManagedBackend,
-                );
-                final handStatusViewModel = HandStatusViewModel(
-                  summary: controller.handSummary,
-                  cameraStatusLabel: controller.phoneCameraStatusLabel,
-                  cameraTone: cameraTone(controller.mobileCameraStatus.value),
-                  cameraSummary: controller.cameraSummary,
-                  mobileCameraInfoMessage:
-                      controller.mobileCameraInfoMessage.value,
-                  fingersUp: state.fingersUp,
-                  carMoving: state.carMoving,
-                  packetLabel: controller.packetLabel,
-                );
-                final carStatusViewModel = CarStatusViewModel(
-                  movementLabel: controller.movementLabel,
-                  carMoving: state.carMoving,
-                  fingersUp: state.fingersUp,
-                  speed: state.speed,
-                  handState: state.handState,
-                  carProgress: state.carProgress,
-                  errorMessage: controller.errorMessage.value,
-                );
+                final connectionViewModel = presentation.connectionStatus;
+                final handStatusViewModel = presentation.handStatus;
+                final carStatusViewModel = presentation.carStatus;
 
                 return Column(
                   children: <Widget>[
@@ -106,7 +73,10 @@ class MobileHomeLayout extends StatelessWidget {
                       child: Row(
                         children: <Widget>[
                           const Expanded(child: BrandCluster(compact: false)),
-                          StatusDotChip(label: statusLabel, tone: statusTone),
+                          StatusDotChip(
+                            label: connectionViewModel.statusLabel,
+                            tone: connectionViewModel.statusTone,
+                          ),
                           const SizedBox(width: 10),
                           IconButton.filledTonal(
                             onPressed: () => _openControlCenter(context),
@@ -231,34 +201,9 @@ class _ControlCenterSheet extends StatelessWidget {
           ),
           child: Obx(() {
             final state = controller.effectiveState;
-            final connectionViewModel = ConnectionStatusViewModel(
-              intro: controller.connectionIntro,
-              isMobileClient: controller.isMobileClient,
-              phoneCameraStatusLabel: controller.phoneCameraStatusLabel,
-              phoneCameraTone: cameraTone(controller.mobileCameraStatus.value),
-              backendStatusLabel: controller.backendStatusLabel,
-              backendStatusTone: backendTone(controller.backendStatusLabel),
-              endpointLabel: controller.endpointLabel,
-              connectionHint: controller.connectionHint,
-              backendActionHint: controller.backendActionHint,
-              isConnecting: controller.isConnecting,
-              isConnected: controller.isConnected,
-              canRestartManagedBackend: controller.canRestartManagedBackend,
-            );
-            final backendStatusViewModel = BackendStatusViewModel(
-              command: controller.backendCommand,
-              recentLog: controller.backendRecentLog.value,
-              infoMessage: controller.backendInfoMessage.value,
-              statePreview: controller.statePreview,
-            );
-            final carStatusViewModel = CarStatusViewModel(
-              movementLabel: controller.movementLabel,
-              carMoving: state.carMoving,
-              fingersUp: state.fingersUp,
-              speed: state.speed,
-              handState: state.handState,
-              carProgress: state.carProgress,
-              errorMessage: controller.errorMessage.value,
+            final presentation = HomePresentationMapper(
+              controller: controller,
+              state: state,
             );
 
             return ListView(
@@ -287,11 +232,10 @@ class _ControlCenterSheet extends StatelessWidget {
                 ),
                 const SizedBox(height: 18),
                 _ControlCenterBody(
-                  state: state,
-                  cameraSummary: controller.cameraSummary,
-                  connectionViewModel: connectionViewModel,
-                  backendStatusViewModel: backendStatusViewModel,
-                  carStatusViewModel: carStatusViewModel,
+                  connectionViewModel: presentation.connectionStatus,
+                  backendStatusViewModel: presentation.backendStatus,
+                  carStatusViewModel: presentation.carStatus,
+                  previewViewModel: presentation.processedPreview,
                   hostTextController: controller.hostTextController,
                   portTextController: controller.portTextController,
                   onToggleConnection: () {
@@ -315,11 +259,10 @@ class _ControlCenterSheet extends StatelessWidget {
 
 class _ControlCenterBody extends StatelessWidget {
   const _ControlCenterBody({
-    required this.state,
-    required this.cameraSummary,
     required this.connectionViewModel,
     required this.backendStatusViewModel,
     required this.carStatusViewModel,
+    required this.previewViewModel,
     required this.hostTextController,
     required this.portTextController,
     required this.onToggleConnection,
@@ -327,11 +270,10 @@ class _ControlCenterBody extends StatelessWidget {
     required this.onRestartBackend,
   });
 
-  final AutoState state;
-  final String cameraSummary;
   final ConnectionStatusViewModel connectionViewModel;
   final BackendStatusViewModel backendStatusViewModel;
   final CarStatusViewModel carStatusViewModel;
+  final ProcessedPreviewViewModel previewViewModel;
   final TextEditingController hostTextController;
   final TextEditingController portTextController;
   final VoidCallback onToggleConnection;
@@ -351,7 +293,7 @@ class _ControlCenterBody extends StatelessWidget {
           onRestartBackend: onRestartBackend,
         ),
         const SizedBox(height: 18),
-        ProcessedPreviewPanel(state: state, cameraSummary: cameraSummary),
+        ProcessedPreviewPanel(viewModel: previewViewModel),
         const SizedBox(height: 18),
         CarStatusPanel(viewModel: carStatusViewModel),
         const SizedBox(height: 18),

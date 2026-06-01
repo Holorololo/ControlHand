@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../../data/models/auto_state.dart';
 import '../../../theme/app_theme.dart';
 import '../controllers/home_controller.dart';
 import 'backend_status_panel.dart';
 import 'car_status_panel.dart';
 import 'connection_panel.dart';
+import 'home_presentation_mapper.dart';
 import 'home_presentation_models.dart';
 import 'home_widget_support.dart';
 import 'mobile_preview_panel.dart';
@@ -41,48 +41,15 @@ class DesktopHomeLayout extends StatelessWidget {
 
                   return Obx(() {
                     final state = controller.effectiveState;
-                    final statusLabel = controller.statusLabel;
-                    final statusTone = connectionTone(
-                      controller.connectionStatus.value,
+                    final presentation = HomePresentationMapper(
+                      controller: controller,
+                      state: state,
                     );
-                    final backendStatusLabel = controller.backendStatusLabel;
-                    final cameraSummary = controller.cameraSummary;
-                    final endpointLabel = controller.endpointLabel;
+                    final connectionViewModel = presentation.connectionStatus;
+                    final backendStatusViewModel = presentation.backendStatus;
+                    final carStatusViewModel = presentation.carStatus;
+                    final previewViewModel = presentation.processedPreview;
                     final packetLabel = controller.packetLabel;
-                    final connectionViewModel = ConnectionStatusViewModel(
-                      intro: controller.connectionIntro,
-                      isMobileClient: controller.isMobileClient,
-                      phoneCameraStatusLabel: controller.phoneCameraStatusLabel,
-                      phoneCameraTone: cameraTone(
-                        controller.mobileCameraStatus.value,
-                      ),
-                      backendStatusLabel: controller.backendStatusLabel,
-                      backendStatusTone: backendTone(
-                        controller.backendStatusLabel,
-                      ),
-                      endpointLabel: controller.endpointLabel,
-                      connectionHint: controller.connectionHint,
-                      backendActionHint: controller.backendActionHint,
-                      isConnecting: controller.isConnecting,
-                      isConnected: controller.isConnected,
-                      canRestartManagedBackend:
-                          controller.canRestartManagedBackend,
-                    );
-                    final backendStatusViewModel = BackendStatusViewModel(
-                      command: controller.backendCommand,
-                      recentLog: controller.backendRecentLog.value,
-                      infoMessage: controller.backendInfoMessage.value,
-                      statePreview: controller.statePreview,
-                    );
-                    final carStatusViewModel = CarStatusViewModel(
-                      movementLabel: controller.movementLabel,
-                      carMoving: state.carMoving,
-                      fingersUp: state.fingersUp,
-                      speed: state.speed,
-                      handState: state.handState,
-                      carProgress: state.carProgress,
-                      errorMessage: controller.errorMessage.value,
-                    );
 
                     return SingleChildScrollView(
                       padding: const EdgeInsets.all(24),
@@ -93,12 +60,11 @@ class DesktopHomeLayout extends StatelessWidget {
                                 SizedBox(
                                   width: 380,
                                   child: _ControlCenterBody(
-                                    state: state,
-                                    cameraSummary: cameraSummary,
                                     connectionViewModel: connectionViewModel,
                                     backendStatusViewModel:
                                         backendStatusViewModel,
                                     carStatusViewModel: carStatusViewModel,
+                                    previewViewModel: previewViewModel,
                                     hostTextController:
                                         controller.hostTextController,
                                     portTextController:
@@ -120,16 +86,13 @@ class DesktopHomeLayout extends StatelessWidget {
                                   child: Column(
                                     children: <Widget>[
                                       _DesktopHero(
-                                        statusLabel: statusLabel,
-                                        statusTone: statusTone,
-                                        backendStatusLabel: backendStatusLabel,
-                                        endpointLabel: endpointLabel,
+                                        connectionViewModel:
+                                            connectionViewModel,
                                         packetLabel: packetLabel,
                                       ),
                                       const SizedBox(height: 24),
                                       ProcessedPreviewPanel(
-                                        state: state,
-                                        cameraSummary: cameraSummary,
+                                        viewModel: previewViewModel,
                                       ),
                                       const SizedBox(height: 24),
                                       CarStatusPanel(
@@ -143,20 +106,16 @@ class DesktopHomeLayout extends StatelessWidget {
                           : Column(
                               children: <Widget>[
                                 _DesktopHero(
-                                  statusLabel: statusLabel,
-                                  statusTone: statusTone,
-                                  backendStatusLabel: backendStatusLabel,
-                                  endpointLabel: endpointLabel,
+                                  connectionViewModel: connectionViewModel,
                                   packetLabel: packetLabel,
                                 ),
                                 const SizedBox(height: 20),
                                 _ControlCenterBody(
-                                  state: state,
-                                  cameraSummary: cameraSummary,
                                   connectionViewModel: connectionViewModel,
                                   backendStatusViewModel:
                                       backendStatusViewModel,
                                   carStatusViewModel: carStatusViewModel,
+                                  previewViewModel: previewViewModel,
                                   hostTextController:
                                       controller.hostTextController,
                                   portTextController:
@@ -187,17 +146,11 @@ class DesktopHomeLayout extends StatelessWidget {
 
 class _DesktopHero extends StatelessWidget {
   const _DesktopHero({
-    required this.statusLabel,
-    required this.statusTone,
-    required this.backendStatusLabel,
-    required this.endpointLabel,
+    required this.connectionViewModel,
     required this.packetLabel,
   });
 
-  final String statusLabel;
-  final HomeTone statusTone;
-  final String backendStatusLabel;
-  final String endpointLabel;
+  final ConnectionStatusViewModel connectionViewModel;
   final String packetLabel;
 
   @override
@@ -225,12 +178,15 @@ class _DesktopHero extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: <Widget>[
-              StatusDotChip(label: statusLabel, tone: statusTone),
               StatusDotChip(
-                label: backendStatusLabel,
-                tone: backendTone(backendStatusLabel),
+                label: connectionViewModel.statusLabel,
+                tone: connectionViewModel.statusTone,
               ),
-              SoftChip(label: endpointLabel),
+              StatusDotChip(
+                label: connectionViewModel.backendStatusLabel,
+                tone: connectionViewModel.backendStatusTone,
+              ),
+              SoftChip(label: connectionViewModel.endpointLabel),
               SoftChip(label: 'Ultimo paquete $packetLabel'),
             ],
           ),
@@ -242,11 +198,10 @@ class _DesktopHero extends StatelessWidget {
 
 class _ControlCenterBody extends StatelessWidget {
   const _ControlCenterBody({
-    required this.state,
-    required this.cameraSummary,
     required this.connectionViewModel,
     required this.backendStatusViewModel,
     required this.carStatusViewModel,
+    required this.previewViewModel,
     required this.hostTextController,
     required this.portTextController,
     required this.onToggleConnection,
@@ -255,11 +210,10 @@ class _ControlCenterBody extends StatelessWidget {
     this.includeRemotePreview = true,
   });
 
-  final AutoState state;
-  final String cameraSummary;
   final ConnectionStatusViewModel connectionViewModel;
   final BackendStatusViewModel backendStatusViewModel;
   final CarStatusViewModel carStatusViewModel;
+  final ProcessedPreviewViewModel previewViewModel;
   final TextEditingController hostTextController;
   final TextEditingController portTextController;
   final VoidCallback onToggleConnection;
@@ -281,7 +235,7 @@ class _ControlCenterBody extends StatelessWidget {
         ),
         const SizedBox(height: 18),
         if (includeRemotePreview) ...<Widget>[
-          ProcessedPreviewPanel(state: state, cameraSummary: cameraSummary),
+          ProcessedPreviewPanel(viewModel: previewViewModel),
           const SizedBox(height: 18),
           CarStatusPanel(viewModel: carStatusViewModel),
           const SizedBox(height: 18),
