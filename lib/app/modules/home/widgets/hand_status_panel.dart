@@ -5,12 +5,26 @@ import 'home_presentation_models.dart';
 import 'home_widget_support.dart';
 
 class HandStatusPanel extends StatelessWidget {
-  const HandStatusPanel({required this.viewModel, super.key});
+  const HandStatusPanel({
+    required this.viewModel,
+    this.bluetoothStatusViewModel,
+    this.compact = false,
+    super.key,
+  });
 
   final HandStatusViewModel viewModel;
+  final BluetoothStatusViewModel? bluetoothStatusViewModel;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    if (compact) {
+      return _CompactHandStatusPanel(
+        viewModel: viewModel,
+        bluetoothStatusViewModel: bluetoothStatusViewModel,
+      );
+    }
+
     return GlassPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -55,6 +69,61 @@ class HandStatusPanel extends StatelessWidget {
               MetricBadge(label: 'Dedos', value: viewModel.fingersValue),
               MetricBadge(label: 'Auto', value: viewModel.carValue),
               MetricBadge(label: 'Paquete', value: viewModel.packetLabel),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompactHandStatusPanel extends StatelessWidget {
+  const _CompactHandStatusPanel({
+    required this.viewModel,
+    required this.bluetoothStatusViewModel,
+  });
+
+  final HandStatusViewModel viewModel;
+  final BluetoothStatusViewModel? bluetoothStatusViewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final payloadLabel = bluetoothStatusViewModel?.lastPayloadLabel;
+    final commandText = bluetoothStatusViewModel?.lastCommandLabel;
+    final commandLabel = bluetoothStatusViewModel == null
+        ? null
+        : '${payloadLabel == null || payloadLabel == 'Sin payload' ? '--' : payloadLabel} / '
+              '${commandText == null || commandText == 'Sin comando' ? 'espera' : commandText}';
+
+    return GlassPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              StatusDotChip(
+                label: viewModel.summary,
+                tone: viewModel.cameraTone,
+              ),
+              StatusDotChip(
+                label: viewModel.cameraStatusLabel,
+                tone: viewModel.cameraTone,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              MetricBadge(label: 'Dedos', value: viewModel.fingersValue),
+              MetricBadge(label: 'Auto', value: viewModel.carValue),
+              MetricBadge(label: 'Paquete', value: viewModel.packetLabel),
+              if (commandLabel != null)
+                MetricBadge(label: 'Cmd', value: commandLabel),
             ],
           ),
         ],

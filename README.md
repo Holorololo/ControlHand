@@ -16,6 +16,53 @@ La arquitectura ya soporta estos escenarios:
 - `lib/app/modules/home/controllers/home_controller.dart`: estado reactivo con GetX.
 - `lib/app/modules/home/views/home_view.dart`: pantalla principal que compone el dashboard Flutter.
 
+## Capa de comandos Bluetooth simulados
+
+La app ya incluye una capa preparada para traducir el estado detectado de la mano en comandos de auto que mas adelante se pueden enviar a un vehiculo real por Bluetooth.
+
+### Componentes principales
+
+- `BluetoothController`: coordina el envio de comandos desde Flutter. Mantiene el estado de conexion Bluetooth, el modo simulado, el ultimo comando enviado y el ultimo payload. Tambien evita reenviar el mismo comando muchas veces seguidas.
+- `CarCommandMapper`: convierte el estado de la mano en un comando del auto y tambien traduce ese comando a payload Bluetooth y a texto visual para la UI.
+- `MockBluetoothCommandService`: implementacion simulada de envio. No usa hardware real; solo guarda el ultimo payload, registra el ultimo comando y escribe en consola lo que se "enviaria".
+
+### Comandos generados
+
+- `F` = avanzar
+- `S` = detener
+- `L` = izquierda
+- `R` = derecha
+- `B` = retroceder
+
+### Mapeo actual desde la mano
+
+- mano abierta -> `forward` -> `F`
+- mano cerrada -> `stop` -> `S`
+- mano no detectada -> `stop` -> `S`
+
+### Estado actual
+
+Hoy esta funcionando en `modo simulado`. Eso significa que la UI y la arquitectura ya estan listas para trabajar con comandos de auto, pero el envio real todavia se hace con un mock y no con un modulo Bluetooth fisico.
+
+La pantalla principal ya muestra:
+
+- estado Bluetooth,
+- modo `Simulado` o `Real`,
+- ultimo comando,
+- ultimo payload enviado,
+- botones manuales para `Avanzar`, `Detener`, `Izquierda`, `Derecha` y `Retroceder`.
+
+### Como se conectaria Bluetooth real despues
+
+Cuando quieras conectar un auto fisico, no hace falta rehacer la UI ni el flujo principal. Solo debes reemplazar `MockBluetoothCommandService` por una implementacion real de `BluetoothCommandService`.
+
+Opciones previstas:
+
+- `flutter_blue_plus` para BLE,
+- `flutter_bluetooth_classic_serial` para Bluetooth clasico.
+
+El resto de la app puede seguir igual: `BluetoothController` seguiria decidiendo cuando enviar `F`, `S`, `L`, `R` o `B`, y el service real solo se encargaria de hablar con el hardware.
+
 ## Endpoints del backend
 
 Cuando `proyectoauto` esta corriendo, publica:

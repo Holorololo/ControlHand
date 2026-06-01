@@ -60,20 +60,9 @@ class MobileHomeLayout extends StatelessWidget {
                 children: <Widget>[
                   Padding(
                     padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
-                    child: Row(
-                      children: <Widget>[
-                        const Expanded(child: BrandCluster(compact: false)),
-                        _ReactiveConnectionStatusChip(controller: controller),
-                        const SizedBox(width: 10),
-                        IconButton.filledTonal(
-                          onPressed: () => _openControlCenter(context),
-                          style: IconButton.styleFrom(
-                            backgroundColor: AppTheme.panelStrong,
-                            foregroundColor: AppTheme.primarySoft,
-                          ),
-                          icon: const Icon(Icons.tune_rounded),
-                        ),
-                      ],
+                    child: _MobileTopBar(
+                      controller: controller,
+                      onOpenPanel: () => _openControlCenter(context),
                     ),
                   ),
                   Expanded(
@@ -121,12 +110,35 @@ class _MobileCommandDeck extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(child: _ReactiveHandMetricPanel(controller: controller)),
-              const SizedBox(width: 12),
-              Expanded(child: _ReactiveCarMetricPanel(controller: controller)),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stacked = constraints.maxWidth < 360;
+
+              // Split the deck vertically on narrow phones to avoid overflow.
+              return stacked
+                  ? Column(
+                      children: <Widget>[
+                        _ReactiveHandMetricPanel(controller: controller),
+                        const SizedBox(height: 12),
+                        _ReactiveCarMetricPanel(controller: controller),
+                      ],
+                    )
+                  : Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: _ReactiveHandMetricPanel(
+                            controller: controller,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _ReactiveCarMetricPanel(
+                            controller: controller,
+                          ),
+                        ),
+                      ],
+                    );
+            },
           ),
           const SizedBox(height: 12),
           Obx(() {
@@ -342,10 +354,13 @@ class _ReactiveMobilePreview extends StatelessWidget {
         controller: controller,
         state: state,
       );
+      final bluetoothStatusViewModel =
+          HomePresentationMapper.mapBluetoothStatus(controller: controller);
       return MobilePreviewPanel(
         cameraController: controller.phoneCameraController,
         cameraWaitingMessage: controller.mobileCameraInfoMessage.value,
         handStatusViewModel: handStatusViewModel,
+        bluetoothStatusViewModel: bluetoothStatusViewModel,
       );
     });
   }
@@ -412,5 +427,62 @@ class _ReactiveCarAlertStrip extends StatelessWidget {
         ],
       );
     });
+  }
+}
+
+class _MobileTopBar extends StatelessWidget {
+  const _MobileTopBar({required this.controller, required this.onOpenPanel});
+
+  final HomeController controller;
+  final VoidCallback onOpenPanel;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 380;
+        final actionButton = IconButton.filledTonal(
+          onPressed: onOpenPanel,
+          style: IconButton.styleFrom(
+            backgroundColor: AppTheme.panelStrong,
+            foregroundColor: AppTheme.primarySoft,
+          ),
+          icon: const Icon(Icons.tune_rounded),
+        );
+
+        if (stacked) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const BrandCluster(compact: false),
+              const SizedBox(height: 12),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: _ReactiveConnectionStatusChip(
+                        controller: controller,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  actionButton,
+                ],
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            const Expanded(child: BrandCluster(compact: false)),
+            _ReactiveConnectionStatusChip(controller: controller),
+            const SizedBox(width: 10),
+            actionButton,
+          ],
+        );
+      },
+    );
   }
 }

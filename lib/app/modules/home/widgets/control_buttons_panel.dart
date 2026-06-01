@@ -52,24 +52,60 @@ class MobilePrimaryActionsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Expanded(
-          child: FilledButton.icon(
-            onPressed: viewModel.isConnecting ? null : onToggleConnection,
-            icon: Icon(viewModel.primaryActionIcon),
-            label: Text(viewModel.primaryActionLabel),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: onOpenPanel,
-            icon: const Icon(Icons.dashboard_customize_rounded),
-            label: const Text('Panel'),
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 320;
+
+        if (stacked) {
+          return Column(
+            children: <Widget>[
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: viewModel.isConnecting ? null : onToggleConnection,
+                  icon: Icon(viewModel.primaryActionIcon),
+                  label: Text(
+                    viewModel.primaryActionLabel,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: onOpenPanel,
+                  icon: const Icon(Icons.dashboard_customize_rounded),
+                  label: const Text('Panel', overflow: TextOverflow.ellipsis),
+                ),
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: viewModel.isConnecting ? null : onToggleConnection,
+                icon: Icon(viewModel.primaryActionIcon),
+                label: Text(
+                  viewModel.primaryActionLabel,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: onOpenPanel,
+                icon: const Icon(Icons.dashboard_customize_rounded),
+                label: const Text('Panel', overflow: TextOverflow.ellipsis),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

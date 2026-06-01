@@ -10,12 +10,14 @@ class MobilePreviewPanel extends StatelessWidget {
     required this.cameraController,
     required this.cameraWaitingMessage,
     required this.handStatusViewModel,
+    required this.bluetoothStatusViewModel,
     super.key,
   });
 
   final CameraController? cameraController;
   final String cameraWaitingMessage;
   final HandStatusViewModel handStatusViewModel;
+  final BluetoothStatusViewModel bluetoothStatusViewModel;
 
   @override
   Widget build(BuildContext context) {
@@ -64,16 +66,20 @@ class MobilePreviewPanel extends StatelessWidget {
               ),
             ),
             const Positioned(
-              top: 26,
-              left: 22,
-              right: 22,
+              top: 18,
+              left: 18,
+              right: 18,
               child: _TopOverlayBar(),
             ),
             Positioned(
-              left: 18,
-              right: 18,
-              bottom: 18,
-              child: HandStatusPanel(viewModel: handStatusViewModel),
+              left: 14,
+              right: 14,
+              bottom: 14,
+              child: HandStatusPanel(
+                viewModel: handStatusViewModel,
+                bluetoothStatusViewModel: bluetoothStatusViewModel,
+                compact: true,
+              ),
             ),
             const Positioned.fill(child: IgnorePointer(child: TargetReticle())),
           ],
@@ -94,22 +100,51 @@ class ProcessedPreviewPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Text(
-                'Preview procesado',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const Spacer(),
-              StatusDotChip(
-                label: viewModel.statusLabel,
-                tone: viewModel.statusTone,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stacked = constraints.maxWidth < 320;
+
+              if (stacked) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Preview procesado',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 10),
+                    StatusDotChip(
+                      label: viewModel.statusLabel,
+                      tone: viewModel.statusTone,
+                    ),
+                  ],
+                );
+              }
+
+              return Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      'Preview procesado',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  StatusDotChip(
+                    label: viewModel.statusLabel,
+                    tone: viewModel.statusTone,
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 8),
           Text(
             viewModel.cameraSummary,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 16),
@@ -147,11 +182,13 @@ class _TopOverlayBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    return const Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      spacing: 8,
+      runSpacing: 8,
       children: <Widget>[
-        GlassTag(icon: Icons.smartphone_rounded, label: 'Camara del celular'),
-        Spacer(),
-        GlassTag(icon: Icons.blur_on_rounded, label: 'Neon Vision'),
+        GlassTag(icon: Icons.smartphone_rounded, label: 'Camara movil'),
+        GlassTag(icon: Icons.blur_on_rounded, label: 'Preview live'),
       ],
     );
   }

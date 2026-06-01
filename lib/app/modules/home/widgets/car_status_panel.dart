@@ -14,18 +14,45 @@ class CarStatusPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Text(
-                'Estado del auto',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const Spacer(),
-              StatusDotChip(
-                label: viewModel.statusLabel,
-                tone: viewModel.statusTone,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stacked = constraints.maxWidth < 320;
+
+              if (stacked) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Estado del auto',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 10),
+                    StatusDotChip(
+                      label: viewModel.statusLabel,
+                      tone: viewModel.statusTone,
+                    ),
+                  ],
+                );
+              }
+
+              return Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      'Estado del auto',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  StatusDotChip(
+                    label: viewModel.statusLabel,
+                    tone: viewModel.statusTone,
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 16),
           _TrackScene(viewModel: viewModel),
@@ -62,29 +89,42 @@ class _TrackScene extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: MiniMetric(
-                  label: 'Dedos',
-                  value: viewModel.fingersValue,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: MiniMetric(
-                  label: 'Velocidad',
-                  value: viewModel.speedValue,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: MiniMetric(
-                  label: 'Estado',
-                  value: viewModel.handStateLabel,
-                ),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compactWidth = constraints.maxWidth < 360;
+              final itemWidth = compactWidth
+                  ? constraints.maxWidth
+                  : (constraints.maxWidth - 20) / 3;
+
+              // Let metrics wrap before the track does to avoid flex overflow.
+              return Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: <Widget>[
+                  SizedBox(
+                    width: itemWidth,
+                    child: MiniMetric(
+                      label: 'Dedos',
+                      value: viewModel.fingersValue,
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: MiniMetric(
+                      label: 'Velocidad',
+                      value: viewModel.speedValue,
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: MiniMetric(
+                      label: 'Estado',
+                      value: viewModel.handStateLabel,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 18),
           const RoadStrip(),

@@ -35,41 +35,54 @@ class ManualCarControlPanel extends StatelessWidget {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: <Widget>[
-              _CommandButton(
-                command: CarCommand.forward,
-                activeCommand: activeCommand,
-                enabled: isConnected,
-                onPressed: onForward,
-              ),
-              _CommandButton(
-                command: CarCommand.stop,
-                activeCommand: activeCommand,
-                enabled: isConnected,
-                onPressed: onStop,
-              ),
-              _CommandButton(
-                command: CarCommand.left,
-                activeCommand: activeCommand,
-                enabled: isConnected,
-                onPressed: onLeft,
-              ),
-              _CommandButton(
-                command: CarCommand.right,
-                activeCommand: activeCommand,
-                enabled: isConnected,
-                onPressed: onRight,
-              ),
-              _CommandButton(
-                command: CarCommand.backward,
-                activeCommand: activeCommand,
-                enabled: isConnected,
-                onPressed: onBackward,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final buttonWidth = constraints.maxWidth < 340
+                  ? (constraints.maxWidth - 10) / 2
+                  : 132.0;
+
+              return Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: <Widget>[
+                  _CommandButton(
+                    width: buttonWidth,
+                    command: CarCommand.forward,
+                    activeCommand: activeCommand,
+                    enabled: isConnected,
+                    onPressed: onForward,
+                  ),
+                  _CommandButton(
+                    width: buttonWidth,
+                    command: CarCommand.stop,
+                    activeCommand: activeCommand,
+                    enabled: isConnected,
+                    onPressed: onStop,
+                  ),
+                  _CommandButton(
+                    width: buttonWidth,
+                    command: CarCommand.left,
+                    activeCommand: activeCommand,
+                    enabled: isConnected,
+                    onPressed: onLeft,
+                  ),
+                  _CommandButton(
+                    width: buttonWidth,
+                    command: CarCommand.right,
+                    activeCommand: activeCommand,
+                    enabled: isConnected,
+                    onPressed: onRight,
+                  ),
+                  _CommandButton(
+                    width: buttonWidth,
+                    command: CarCommand.backward,
+                    activeCommand: activeCommand,
+                    enabled: isConnected,
+                    onPressed: onBackward,
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -79,12 +92,14 @@ class ManualCarControlPanel extends StatelessWidget {
 
 class _CommandButton extends StatelessWidget {
   const _CommandButton({
+    required this.width,
     required this.command,
     required this.activeCommand,
     required this.enabled,
     required this.onPressed,
   });
 
+  final double width;
   final CarCommand command;
   final CarCommand? activeCommand;
   final bool enabled;
@@ -96,15 +111,15 @@ class _CommandButton extends StatelessWidget {
     final label = CarCommandMapper.toVisualText(command);
 
     return SizedBox(
-      width: 132,
+      width: width,
       child: active
           ? FilledButton(
               onPressed: enabled ? onPressed : null,
-              child: Text(label),
+              child: Text(label, overflow: TextOverflow.ellipsis),
             )
           : OutlinedButton(
               onPressed: enabled ? onPressed : null,
-              child: Text(label),
+              child: Text(label, overflow: TextOverflow.ellipsis),
             ),
     );
   }
