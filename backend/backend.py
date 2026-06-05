@@ -1,7 +1,7 @@
 import argparse
 import threading
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Callable, Optional
 
 import cv2
@@ -49,6 +49,15 @@ class AutoState:
     car_x: int
     car_y: int
     speed: int
+    hand_label: str = ""
+    raw_finger_count: int = 0
+    stable_finger_count: int = 0
+    raw_hand_status: str = "none"
+    raw_command: str = "stop"
+    raw_payload: str = "S"
+    raw_fingers: dict = field(default_factory=dict)
+    stability_frames_required: int = 0
+    stability_match_count: int = 0
 
     def to_dict(self):
         return asdict(self)
@@ -68,6 +77,21 @@ class AutoState:
             car_x=AUTO_START_X,
             car_y=AUTO_Y,
             speed=speed,
+            hand_label="",
+            raw_finger_count=0,
+            stable_finger_count=0,
+            raw_hand_status="none",
+            raw_command="stop",
+            raw_payload="S",
+            raw_fingers={
+                "thumb": False,
+                "index": False,
+                "middle": False,
+                "ring": False,
+                "pinky": False,
+            },
+            stability_frames_required=0,
+            stability_match_count=0,
         )
 
 
@@ -125,6 +149,40 @@ class GestureAutoBackend:
     def _distancia_2d(self, punto_a, punto_b):
         return float(np.hypot(punto_a.x - punto_b.x, punto_a.y - punto_b.y))
 
+    def _angulo_2d(self, punto_a, punto_b, punto_c):
+        vector_ab = np.array(
+            [punto_a.x - punto_b.x, punto_a.y - punto_b.y],
+            dtype=np.float32,
+        )
+        vector_cb = np.array(
+            [punto_c.x - punto_b.x, punto_c.y - punto_b.y],
+            dtype=np.float32,
+        )
+        magnitudes = np.linalg.norm(vector_ab) * np.linalg.norm(vector_cb)
+        if magnitudes <= 1e-6:
+            return 0.0
+
+        coseno = float(np.dot(vector_ab, vector_cb) / magnitudes)
+        coseno = float(np.clip(coseno, -1.0, 1.0))
+        return float(np.degrees(np.arccos(coseno)))
+
+    def _empty_finger_map(self):
+        return {
+            "thumb": False,
+            "index": False,
+            "middle": False,
+            "ring": False,
+            "pinky": False,
+        }
+
+    def _normalize_handedness_label(self, handedness_label):
+        label = (handedness_label or "").strip().lower()
+        if label == "left":
+            return "Left"
+        if label == "right":
+            return "Right"
+        return "Unknown"
+
     def _dedo_extendido(self, landmarks, tip_idx, pip_idx, mcp_idx):
         tip = landmarks[tip_idx]
         pip = landmarks[pip_idx]
@@ -135,43 +193,61 @@ class GestureAutoBackend:
         thumb_tip = landmarks[4]
         thumb_ip = landmarks[3]
         thumb_mcp = landmarks[2]
+        thumb_cmc = landmarks[1]
         index_mcp = landmarks[5]
         pinky_mcp = landmarks[17]
         wrist = landmarks[0]
-        palm_width = max(0.05, abs(index_mcp.x - pinky_mcp.x))
+        palm_width = max(0.05, self._distancia_2d(index_mcp, pinky_mcp))
         tip_dist = self._distancia_2d(thumb_tip, wrist)
         ip_dist = self._distancia_2d(thumb_ip, wrist)
         tip_to_index = self._distancia_2d(thumb_tip, index_mcp)
         ip_to_index = self._distancia_2d(thumb_ip, index_mcp)
-        label = (handedness_label or "").strip().lower()
-        direction = -1 if label != "left" else 1
-        horizontal_tip_extension = (thumb_tip.x - thumb_ip.x) * direction
-        horizontal_joint_extension = (thumb_ip.x - thumb_mcp.x) * direction
+        label = self._normalize_handedness_label(handedness_label).lower()
+        is_left = label == "left"
+        if label not in {"left", "right"}:
+            is_left = thumb_tip.x > index_mcp.x
+
         horizontal_extension = (
-            horizontal_tip_extension > palm_width * 0.20
-            and horizontal_joint_extension > palm_width * 0.07
+            thumb_tip.x > thumb_ip.x + (palm_width * 0.03)
+            and thumb_ip.x > thumb_mcp.x - (palm_width * 0.01)
+        ) if is_left else (
+            thumb_tip.x < thumb_ip.x - (palm_width * 0.03)
+            and thumb_ip.x < thumb_mcp.x + (palm_width * 0.01)
         )
-        tip_far_from_palm = (thumb_tip.x - wrist.x) * direction > palm_width * 0.26
-        tip_above_wrist = thumb_tip.y < wrist.y + 0.12
+
+        outer_knuckle_x = max(index_mcp.x, thumb_mcp.x) if is_left else min(index_mcp.x, thumb_mcp.x)
+        tip_outside_palm = (
+            thumb_tip.x > outer_knuckle_x + (palm_width * 0.02)
+        ) if is_left else (
+            thumb_tip.x < outer_knuckle_x - (palm_width * 0.02)
+        )
+
+        thumb_ip_angle = self._angulo_2d(thumb_mcp, thumb_ip, thumb_tip)
+        thumb_mcp_angle = self._angulo_2d(thumb_cmc, thumb_mcp, thumb_ip)
+        thumb_straight = thumb_ip_angle > 150 and thumb_mcp_angle > 135
+        tip_farther_from_wrist = tip_dist > (ip_dist * 1.05)
+        tip_farther_from_index = tip_to_index > (ip_to_index * 1.02)
+        tip_not_folded_in = thumb_tip.y < (thumb_mcp.y + 0.18)
 
         return (
-            horizontal_extension
-            and tip_far_from_palm
-            and tip_above_wrist
-            and tip_dist > (ip_dist * 1.15)
-            and tip_to_index > (ip_to_index * 1.05)
+            tip_outside_palm
+            and thumb_straight
+            and tip_farther_from_wrist
+            and tip_farther_from_index
+            and tip_not_folded_in
+            and horizontal_extension
         )
 
     def contar_dedos(self, landmarks, handedness_label=None):
-        dedos = [
-            1 if self._pulgar_extendido(landmarks, handedness_label) else 0,
-            1 if self._dedo_extendido(landmarks, 8, 6, 5) else 0,
-            1 if self._dedo_extendido(landmarks, 12, 10, 9) else 0,
-            1 if self._dedo_extendido(landmarks, 16, 14, 13) else 0,
-            1 if self._dedo_extendido(landmarks, 20, 18, 17) else 0,
-        ]
+        finger_map = {
+            "thumb": self._pulgar_extendido(landmarks, handedness_label),
+            "index": self._dedo_extendido(landmarks, 8, 6, 5),
+            "middle": self._dedo_extendido(landmarks, 12, 10, 9),
+            "ring": self._dedo_extendido(landmarks, 16, 14, 13),
+            "pinky": self._dedo_extendido(landmarks, 20, 18, 17),
+        }
 
-        return dedos.count(1), dedos
+        return sum(1 for value in finger_map.values() if value), finger_map
 
     def _command_for_detection(self, hand_status, finger_count, hand_detected):
         if not hand_detected or hand_status == "none":
@@ -232,6 +308,12 @@ class GestureAutoBackend:
             "command": "stop",
             "payload": "S",
             "car_moving": False,
+            "hand_label": "Unknown",
+            "raw_finger_count": 0,
+            "raw_hand_status": "none",
+            "raw_command": "stop",
+            "raw_payload": "S",
+            "raw_fingers": self._empty_finger_map(),
         }
 
         if not results.multi_hand_landmarks:
@@ -243,8 +325,9 @@ class GestureAutoBackend:
             handedness_label = (
                 results.multi_handedness[0].classification[0].label
             )
+        normalized_hand_label = self._normalize_handedness_label(handedness_label)
 
-        fingers_up, _finger_states = self.contar_dedos(
+        fingers_up, finger_states = self.contar_dedos(
             hand_landmarks.landmark,
             handedness_label,
         )
@@ -267,6 +350,12 @@ class GestureAutoBackend:
         state["command"] = command
         state["payload"] = payload
         state["car_moving"] = car_moving
+        state["hand_label"] = normalized_hand_label
+        state["raw_finger_count"] = fingers_up
+        state["raw_hand_status"] = hand_status
+        state["raw_command"] = command
+        state["raw_payload"] = payload
+        state["raw_fingers"] = finger_states
         return state
 
     def _apply_stability(self, raw_state):
@@ -305,6 +394,14 @@ class GestureAutoBackend:
             "command": self._stable_command,
             "payload": self._stable_payload,
             "car_moving": self._stable_car_moving,
+            "hand_label": raw_state["hand_label"],
+            "raw_finger_count": raw_state["raw_finger_count"],
+            "raw_hand_status": raw_state["raw_hand_status"],
+            "raw_command": raw_state["raw_command"],
+            "raw_payload": raw_state["raw_payload"],
+            "raw_fingers": raw_state["raw_fingers"],
+            "stability_frames_required": self.stable_frames,
+            "stability_match_count": self._raw_state_count,
         }
 
     def dibujar_mano(self, frame, results):
@@ -540,6 +637,15 @@ class GestureAutoBackend:
             car_x=self.auto_x,
             car_y=self.auto_y,
             speed=self.auto_speed,
+            hand_label=stable_state["hand_label"],
+            raw_finger_count=stable_state["raw_finger_count"],
+            stable_finger_count=stable_state["finger_count"],
+            raw_hand_status=stable_state["raw_hand_status"],
+            raw_command=stable_state["raw_command"],
+            raw_payload=stable_state["raw_payload"],
+            raw_fingers=stable_state["raw_fingers"],
+            stability_frames_required=stable_state["stability_frames_required"],
+            stability_match_count=stable_state["stability_match_count"],
         )
 
         hand_frame = self.dibujar_mano(frame, results)
@@ -810,8 +916,16 @@ class GestureAutoRuntime:
         print(
             "[mobile-frame] "
             f"count={self._received_mobile_frames} "
+            f"hand_label={state.hand_label} "
             f"hand_status={state.hand_status} "
             f"finger_count={state.finger_count} "
+            f"raw_finger_count={state.raw_finger_count} "
+            f"stable_finger_count={state.stable_finger_count} "
+            f"raw_fingers={state.raw_fingers} "
+            f"raw_hand_status={state.raw_hand_status} "
+            f"raw_command={state.raw_command} "
+            f"raw_payload={state.raw_payload} "
+            f"stability={state.stability_match_count}/{state.stability_frames_required} "
             f"command={state.command} "
             f"payload={state.payload} "
             f"decode_ms={decode_ms} "

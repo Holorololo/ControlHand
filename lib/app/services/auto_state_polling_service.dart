@@ -380,7 +380,34 @@ class AutoStatePollingService extends GetxService {
         !identical(previous.previewBytes, next.previewBytes) ||
         previous.hasCameraPreview != next.hasCameraPreview ||
         previous.cameraFrameWidth != next.cameraFrameWidth ||
-        previous.cameraFrameHeight != next.cameraFrameHeight;
+        previous.cameraFrameHeight != next.cameraFrameHeight ||
+        previous.handLabel != next.handLabel ||
+        previous.rawFingerCount != next.rawFingerCount ||
+        previous.stableFingerCount != next.stableFingerCount ||
+        previous.rawHandStatus != next.rawHandStatus ||
+        previous.rawCommand != next.rawCommand ||
+        previous.rawPayload != next.rawPayload ||
+        !_sameFingerMap(previous.rawFingers, next.rawFingers) ||
+        previous.stabilityFramesRequired != next.stabilityFramesRequired ||
+        previous.stabilityMatchCount != next.stabilityMatchCount;
+  }
+
+  bool _sameFingerMap(Map<String, bool> previous, Map<String, bool> next) {
+    if (identical(previous, next)) {
+      return true;
+    }
+
+    if (previous.length != next.length) {
+      return false;
+    }
+
+    for (final entry in previous.entries) {
+      if (next[entry.key] != entry.value) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   void _maybeLogPollingMetrics(Duration elapsed) {
@@ -453,8 +480,11 @@ class AutoStatePollingService extends GetxService {
     _lastLoggedPayload = state.payload;
     debugPrint(
       'AutoStatePollingService -> state '
+      'label=${state.handLabel.isEmpty ? 'n/a' : state.handLabel} '
       'hand=${state.normalizedHandStatus} '
-      'fingers=${state.fingerCount} '
+      'raw_fingers=${state.rawFingers} '
+      'raw_count=${state.rawFingerCount} '
+      'stable_count=${state.stableFingerCount} '
       'command=${state.command} '
       'payload=${state.payload}',
     );

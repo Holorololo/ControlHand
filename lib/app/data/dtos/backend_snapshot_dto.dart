@@ -25,6 +25,15 @@ class BackendSnapshotDto {
     required this.cameraPreviewVersion,
     required this.handGestureType,
     required this.vehicleMotionState,
+    this.handLabel = '',
+    this.rawFingerCount = 0,
+    this.stableFingerCount = 0,
+    this.rawHandStatus = 'none',
+    this.rawCommand = 'stop',
+    this.rawPayload = 'S',
+    this.rawFingers = const <String, bool>{},
+    this.stabilityFramesRequired = 0,
+    this.stabilityMatchCount = 0,
   });
 
   factory BackendSnapshotDto.fromJson(Map<String, dynamic> json) {
@@ -57,6 +66,7 @@ class BackendSnapshotDto {
     final carMoving = json['car_moving'] == true;
     final timestampSeconds = (json['timestamp'] as num?)?.toDouble() ?? 0;
     final milliseconds = (timestampSeconds * 1000).round();
+    final rawFingersJson = json['raw_fingers'];
 
     return BackendSnapshotDto(
       timestamp: DateTime.fromMillisecondsSinceEpoch(
@@ -86,6 +96,23 @@ class BackendSnapshotDto {
       vehicleMotionState: carMoving
           ? VehicleMotionState.moving
           : VehicleMotionState.stopped,
+      handLabel: (json['hand_label'] as String?) ?? '',
+      rawFingerCount:
+          (json['raw_finger_count'] as num?)?.toInt() ?? fingerCount,
+      stableFingerCount:
+          (json['stable_finger_count'] as num?)?.toInt() ?? fingerCount,
+      rawHandStatus: (json['raw_hand_status'] as String?) ?? handStatus,
+      rawCommand: (json['raw_command'] as String?) ?? command,
+      rawPayload: (json['raw_payload'] as String?) ?? payload,
+      rawFingers: rawFingersJson is Map
+          ? rawFingersJson.map(
+              (key, value) => MapEntry(key.toString(), value == true),
+            )
+          : const <String, bool>{},
+      stabilityFramesRequired:
+          (json['stability_frames_required'] as num?)?.toInt() ?? 0,
+      stabilityMatchCount:
+          (json['stability_match_count'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -111,6 +138,15 @@ class BackendSnapshotDto {
   final int? cameraPreviewVersion;
   final HandGestureType handGestureType;
   final VehicleMotionState vehicleMotionState;
+  final String handLabel;
+  final int rawFingerCount;
+  final int stableFingerCount;
+  final String rawHandStatus;
+  final String rawCommand;
+  final String rawPayload;
+  final Map<String, bool> rawFingers;
+  final int stabilityFramesRequired;
+  final int stabilityMatchCount;
 }
 
 HandGestureType _mapHandGestureType(String handStatus) {

@@ -26,6 +26,21 @@ void main() {
         'camera_preview_width': 480,
         'camera_preview_height': 320,
         'camera_preview_version': 3,
+        'hand_label': 'Right',
+        'raw_finger_count': 0,
+        'stable_finger_count': 0,
+        'raw_hand_status': 'closed',
+        'raw_command': 'forward',
+        'raw_payload': 'F',
+        'raw_fingers': <String, dynamic>{
+          'thumb': false,
+          'index': false,
+          'middle': false,
+          'ring': false,
+          'pinky': false,
+        },
+        'stability_frames_required': 2,
+        'stability_match_count': 2,
       });
 
       expect(dto.handDetected, isTrue);
@@ -34,6 +49,10 @@ void main() {
       expect(dto.fingerCount, 0);
       expect(dto.command, 'forward');
       expect(dto.payload, 'F');
+      expect(dto.handLabel, 'Right');
+      expect(dto.rawFingerCount, 0);
+      expect(dto.stableFingerCount, 0);
+      expect(dto.rawFingers['thumb'], isFalse);
     });
 
     test('distinguishes no hand from closed hand with zero fingers', () {
@@ -77,6 +96,31 @@ void main() {
       expect(closedHand.handDetected, isTrue);
       expect(closedHand.payload, 'F');
       expect(noHand.payload, isNot(closedHand.payload));
+    });
+
+    test('keeps open hand as 5 instead of collapsing it to 4', () {
+      final openHand = AutoState.fromJson(<String, dynamic>{
+        'timestamp': 3.0,
+        'hand_detected': true,
+        'hand_status': 'open',
+        'hand_state': 'MANO ABIERTA',
+        'finger_count': 5,
+        'command': 'stop',
+        'payload': 'S',
+        'car_moving': false,
+        'car_x': 50,
+        'car_y': 350,
+        'speed': 8,
+        'backend_ready': true,
+        'backend_source': 'mobile',
+        'backend_message': 'Mano abierta',
+        'backend_last_error': '',
+        'camera_preview_available': false,
+      });
+
+      expect(openHand.handDetected, isTrue);
+      expect(openHand.fingerCount, 5);
+      expect(openHand.payload, 'S');
     });
   });
 }

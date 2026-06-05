@@ -22,6 +22,15 @@ class AutoState {
     this.previewVersion,
     this.cameraFrameWidth,
     this.cameraFrameHeight,
+    this.handLabel = '',
+    this.rawFingerCount = 0,
+    this.stableFingerCount = 0,
+    this.rawHandStatus = 'none',
+    this.rawCommand = 'stop',
+    this.rawPayload = 'S',
+    this.rawFingers = const <String, bool>{},
+    this.stabilityFramesRequired = 0,
+    this.stabilityMatchCount = 0,
   });
 
   factory AutoState.initial() {
@@ -44,6 +53,15 @@ class AutoState {
       previewVersion: null,
       cameraFrameWidth: null,
       cameraFrameHeight: null,
+      handLabel: '',
+      rawFingerCount: 0,
+      stableFingerCount: 0,
+      rawHandStatus: 'none',
+      rawCommand: 'stop',
+      rawPayload: 'S',
+      rawFingers: const <String, bool>{},
+      stabilityFramesRequired: 0,
+      stabilityMatchCount: 0,
     );
   }
 
@@ -89,6 +107,15 @@ class AutoState {
       previewVersion: previewVersion ?? snapshot.cameraPreviewVersion,
       cameraFrameWidth: previewWidth ?? snapshot.cameraPreviewWidth,
       cameraFrameHeight: previewHeight ?? snapshot.cameraPreviewHeight,
+      handLabel: snapshot.handLabel,
+      rawFingerCount: snapshot.rawFingerCount,
+      stableFingerCount: snapshot.stableFingerCount,
+      rawHandStatus: snapshot.rawHandStatus,
+      rawCommand: snapshot.rawCommand,
+      rawPayload: snapshot.rawPayload,
+      rawFingers: snapshot.rawFingers,
+      stabilityFramesRequired: snapshot.stabilityFramesRequired,
+      stabilityMatchCount: snapshot.stabilityMatchCount,
     );
   }
 
@@ -110,6 +137,15 @@ class AutoState {
   final int? previewVersion;
   final int? cameraFrameWidth;
   final int? cameraFrameHeight;
+  final String handLabel;
+  final int rawFingerCount;
+  final int stableFingerCount;
+  final String rawHandStatus;
+  final String rawCommand;
+  final String rawPayload;
+  final Map<String, bool> rawFingers;
+  final int stabilityFramesRequired;
+  final int stabilityMatchCount;
 
   int get fingerCount => fingersUp;
 
@@ -132,6 +168,15 @@ class AutoState {
     int? previewVersion,
     int? cameraFrameWidth,
     int? cameraFrameHeight,
+    String? handLabel,
+    int? rawFingerCount,
+    int? stableFingerCount,
+    String? rawHandStatus,
+    String? rawCommand,
+    String? rawPayload,
+    Map<String, bool>? rawFingers,
+    int? stabilityFramesRequired,
+    int? stabilityMatchCount,
     bool clearPreview = false,
   }) {
     return AutoState(
@@ -159,6 +204,16 @@ class AutoState {
       cameraFrameHeight: clearPreview
           ? null
           : (cameraFrameHeight ?? this.cameraFrameHeight),
+      handLabel: handLabel ?? this.handLabel,
+      rawFingerCount: rawFingerCount ?? this.rawFingerCount,
+      stableFingerCount: stableFingerCount ?? this.stableFingerCount,
+      rawHandStatus: rawHandStatus ?? this.rawHandStatus,
+      rawCommand: rawCommand ?? this.rawCommand,
+      rawPayload: rawPayload ?? this.rawPayload,
+      rawFingers: rawFingers ?? this.rawFingers,
+      stabilityFramesRequired:
+          stabilityFramesRequired ?? this.stabilityFramesRequired,
+      stabilityMatchCount: stabilityMatchCount ?? this.stabilityMatchCount,
     );
   }
 
@@ -203,6 +258,15 @@ class AutoState {
       'camera_preview_version': previewVersion,
       'camera_preview_width': cameraFrameWidth,
       'camera_preview_height': cameraFrameHeight,
+      'hand_label': handLabel,
+      'raw_finger_count': rawFingerCount,
+      'stable_finger_count': stableFingerCount,
+      'raw_hand_status': rawHandStatus,
+      'raw_command': rawCommand,
+      'raw_payload': rawPayload,
+      'raw_fingers': rawFingers,
+      'stability_frames_required': stabilityFramesRequired,
+      'stability_match_count': stabilityMatchCount,
     };
   }
 }
