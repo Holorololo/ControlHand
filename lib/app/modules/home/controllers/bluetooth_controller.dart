@@ -46,9 +46,14 @@ class BluetoothController extends GetxController {
   final RxnString connectedDeviceAddress = RxnString();
   final RxString connectedDeviceName = ''.obs;
 
+  static const Duration _manualCommandDebounce = Duration(milliseconds: 180);
+
   Worker? _handStateWorker;
   String? _lastDispatchedPayload;
+  _BluetoothPayloadRequest? _queuedPayloadRequest;
+  DateTime? _lastManualDispatchAt;
   bool _wasHandOpen = false;
+  bool _sendInProgress = false;
 
   BluetoothCommandService get _service =>
       _bluetoothService ?? Get.find<BluetoothCommandService>();
@@ -60,27 +65,38 @@ class BluetoothController extends GetxController {
     try {
       final targetAddress = address ?? selectedDeviceAddress.value;
       await _service.connect(address: targetAddress);
-      isConnected.value = _service.isConnected;
+      _setRxIfChanged<bool>(isConnected, _service.isConnected);
       _lastDispatchedPayload = null;
-      errorMessage.value = '';
+      _queuedPayloadRequest = null;
+      _lastManualDispatchAt = null;
+      _setRxIfChanged<String>(errorMessage, '');
       _syncConnectedDeviceState();
       _syncSelectedDeviceFromConnection();
     } catch (error) {
-      isConnected.value = false;
+      _setRxIfChanged<bool>(isConnected, false);
       _lastDispatchedPayload = null;
-      errorMessage.value = _readServiceError(fallback: error.toString());
+      _queuedPayloadRequest = null;
+      _setRxIfChanged<String>(
+        errorMessage,
+        _readServiceError(fallback: error.toString()),
+      );
     }
   }
 
   Future<void> disconnect() async {
     try {
       await _service.disconnect();
-      errorMessage.value = '';
+      _setRxIfChanged<String>(errorMessage, '');
     } catch (error) {
-      errorMessage.value = _readServiceError(fallback: error.toString());
+      _setRxIfChanged<String>(
+        errorMessage,
+        _readServiceError(fallback: error.toString()),
+      );
     } finally {
-      isConnected.value = _service.isConnected;
+      _setRxIfChanged<bool>(isConnected, _service.isConnected);
       _lastDispatchedPayload = null;
+      _queuedPayloadRequest = null;
+      _lastManualDispatchAt = null;
       _syncConnectedDeviceState();
     }
   }
@@ -94,32 +110,42 @@ class BluetoothController extends GetxController {
     await connect();
   }
 
-  Future<void> sendCarCommand(CarCommand command) async {
+  Future<void> sendCarCommand(
+    CarCommand command, {
+    bool isManual = true,
+  }) async {
     final payload = CarCommandMapper.toPayload(command);
-    await _sendBluetoothPayload(
+    await _dispatchBluetoothPayload(
       payload: payload,
       commandLabel: CarCommandMapper.toVisualText(command),
       carCommand: command,
+      isManual: isManual,
+      reportDisconnected: isManual,
     );
   }
 
   Future<void> sendCommandFromHandStatus(String handStatus) async {
     final command = CarCommandMapper.fromHandStatus(handStatus);
-    await sendCarCommand(command);
+    await sendCarCommand(command, isManual: false);
   }
 
-  Future<void> sendBuzzerCommand(BuzzerCommand command) async {
+  Future<void> sendBuzzerCommand(
+    BuzzerCommand command, {
+    bool isManual = true,
+  }) async {
     final payload = BuzzerCommandMapper.toPayload(command);
-    await _sendBluetoothPayload(
+    await _dispatchBluetoothPayload(
       payload: payload,
       commandLabel: BuzzerCommandMapper.toVisualText(command),
       buzzerCommand: command,
+      isManual: isManual,
+      reportDisconnected: isManual,
     );
   }
 
   Future<void> sendBuzzerCommandFromHandStatus(String handStatus) async {
     final command = BuzzerCommandMapper.fromHandStatus(handStatus);
-    await sendBuzzerCommand(command);
+    await sendBuzzerCommand(command, isManual: false);
   }
 
   Future<void> sendForward() => sendCarCommand(CarCommand.forward);
@@ -137,25 +163,31 @@ class BluetoothController extends GetxController {
   Future<void> sendBuzzerOff() => sendBuzzerCommand(BuzzerCommand.off);
 
   void enableAutoVirtualMode() {
-    outputMode.value = BluetoothOutputMode.autoVirtual;
-    isManualBuzzerControlEnabled.value = false;
+    _setRxIfChanged<BluetoothOutputMode>(
+      outputMode,
+      BluetoothOutputMode.autoVirtual,
+    );
+    _setRxIfChanged<bool>(isManualBuzzerControlEnabled, false);
     _lastDispatchedPayload = null;
   }
 
   void enableBuzzerRealMode() {
-    outputMode.value = BluetoothOutputMode.buzzerReal;
+    _setRxIfChanged<BluetoothOutputMode>(
+      outputMode,
+      BluetoothOutputMode.buzzerReal,
+    );
     _lastDispatchedPayload = null;
   }
 
   void selectDevice(String? address) {
     final normalizedAddress = address?.trim();
     if (normalizedAddress == null || normalizedAddress.isEmpty) {
-      selectedDeviceAddress.value = null;
-      selectedDeviceName.value = '';
+      _setRxIfChanged<String?>(selectedDeviceAddress, null);
+      _setRxIfChanged<String>(selectedDeviceName, '');
       return;
     }
 
-    selectedDeviceAddress.value = normalizedAddress;
+    _setRxIfChanged<String?>(selectedDeviceAddress, normalizedAddress);
     BluetoothDeviceInfo? selectedDevice;
     for (final device in pairedDevices) {
       if (device.address == normalizedAddress) {
@@ -163,22 +195,33 @@ class BluetoothController extends GetxController {
         break;
       }
     }
-    selectedDeviceName.value = selectedDevice?.name ?? '';
+    _setRxIfChanged<String>(selectedDeviceName, selectedDevice?.name ?? '');
   }
 
   Future<void> refreshPairedDevices() async {
-    isLoadingDevices.value = true;
+    if (isLoadingDevices.value) {
+      return;
+    }
+
+    _setRxIfChanged<bool>(isLoadingDevices, true);
 
     try {
       final devices = await _service.getPairedDevices();
-      pairedDevices.assignAll(devices);
-      errorMessage.value = '';
+      if (!_sameDeviceList(pairedDevices, devices)) {
+        pairedDevices.assignAll(devices);
+      }
+      _setRxIfChanged<String>(errorMessage, '');
       _preserveSelectedDevice(devices);
     } catch (error) {
-      pairedDevices.clear();
-      errorMessage.value = _readServiceError(fallback: error.toString());
+      if (pairedDevices.isNotEmpty) {
+        pairedDevices.clear();
+      }
+      _setRxIfChanged<String>(
+        errorMessage,
+        _readServiceError(fallback: error.toString()),
+      );
     } finally {
-      isLoadingDevices.value = false;
+      _setRxIfChanged<bool>(isLoadingDevices, false);
     }
   }
 
@@ -186,26 +229,65 @@ class BluetoothController extends GetxController {
     await connect(address: selectedDeviceAddress.value);
   }
 
-  Future<void> _sendBluetoothPayload({
+  Future<void> _dispatchBluetoothPayload({
     required String payload,
     required String commandLabel,
     CarCommand? carCommand,
     BuzzerCommand? buzzerCommand,
+    required bool isManual,
+    required bool reportDisconnected,
   }) async {
-    if (!isConnected.value || _lastDispatchedPayload == payload) {
+    final request = _BluetoothPayloadRequest(
+      payload: payload,
+      commandLabel: commandLabel,
+      carCommand: carCommand,
+      buzzerCommand: buzzerCommand,
+      isManual: isManual,
+      reportDisconnected: reportDisconnected,
+    );
+
+    if (!_canDispatchRequest(request)) {
       return;
     }
+
+    if (_sendInProgress) {
+      _queuedPayloadRequest = request;
+      return;
+    }
+
+    _sendInProgress = true;
 
     try {
       await _service.sendCommand(payload);
       _lastDispatchedPayload = payload;
-      lastCommand.value = carCommand;
-      lastBuzzerCommand.value = buzzerCommand;
-      lastCommandLabel.value = commandLabel;
-      lastPayload.value = payload;
-      errorMessage.value = '';
+      if (request.isManual) {
+        _lastManualDispatchAt = DateTime.now();
+      }
+      _setRxIfChanged<CarCommand?>(lastCommand, carCommand);
+      _setRxIfChanged<BuzzerCommand?>(lastBuzzerCommand, buzzerCommand);
+      _setRxIfChanged<String>(lastCommandLabel, commandLabel);
+      _setRxIfChanged<String>(lastPayload, payload);
+      _setRxIfChanged<String>(errorMessage, '');
     } catch (error) {
-      errorMessage.value = _readServiceError(fallback: error.toString());
+      _setRxIfChanged<String>(
+        errorMessage,
+        _readServiceError(fallback: error.toString()),
+      );
+    } finally {
+      _sendInProgress = false;
+    }
+
+    final queuedRequest = _queuedPayloadRequest;
+    _queuedPayloadRequest = null;
+    if (queuedRequest != null) {
+      await _dispatchBluetoothPayload(
+        payload: queuedRequest.payload,
+        commandLabel: queuedRequest.commandLabel,
+        carCommand: queuedRequest.carCommand,
+        buzzerCommand: queuedRequest.buzzerCommand,
+        isManual: queuedRequest.isManual,
+        reportDisconnected: queuedRequest.reportDisconnected,
+      );
     }
   }
 
@@ -228,8 +310,8 @@ class BluetoothController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    isMockMode.value = isMockModeDefault;
-    outputMode.value = initialOutputMode;
+    _setRxIfChanged<bool>(isMockMode, isMockModeDefault);
+    _setRxIfChanged<BluetoothOutputMode>(outputMode, initialOutputMode);
     _syncConnectedDeviceState();
     unawaited(refreshPairedDevices());
 
@@ -253,8 +335,14 @@ class BluetoothController extends GetxController {
   }
 
   void _syncConnectedDeviceState() {
-    connectedDeviceAddress.value = _service.connectedDeviceAddress;
-    connectedDeviceName.value = _service.connectedDeviceName ?? '';
+    _setRxIfChanged<String?>(
+      connectedDeviceAddress,
+      _service.connectedDeviceAddress,
+    );
+    _setRxIfChanged<String>(
+      connectedDeviceName,
+      _service.connectedDeviceName ?? '',
+    );
   }
 
   void _syncSelectedDeviceFromConnection() {
@@ -291,7 +379,7 @@ class BluetoothController extends GetxController {
   void _syncManualBuzzerControlAvailability(String handStatus) {
     final isHandOpen = _isOpenHandStatus(handStatus);
     if (isHandOpen && !_wasHandOpen) {
-      isManualBuzzerControlEnabled.value = true;
+      _setRxIfChanged<bool>(isManualBuzzerControlEnabled, true);
     }
 
     _wasHandOpen = isHandOpen;
@@ -302,6 +390,74 @@ class BluetoothController extends GetxController {
     return normalized.contains('abierta') ||
         normalized.contains('open') ||
         normalized.contains('hand_open');
+  }
+
+  bool _canDispatchRequest(_BluetoothPayloadRequest request) {
+    if (!isConnected.value) {
+      if (request.reportDisconnected) {
+        _setRxIfChanged<String>(
+          errorMessage,
+          'Conecta el modulo Bluetooth antes de enviar comandos manuales.',
+        );
+      }
+      return false;
+    }
+
+    if (_lastDispatchedPayload == request.payload) {
+      return false;
+    }
+
+    final queuedRequest = _queuedPayloadRequest;
+    if (_sendInProgress &&
+        (queuedRequest?.payload == request.payload ||
+            _lastDispatchedPayload == request.payload)) {
+      return false;
+    }
+
+    if (!request.isManual) {
+      return true;
+    }
+
+    final lastManualDispatchAt = _lastManualDispatchAt;
+    if (lastManualDispatchAt == null) {
+      return true;
+    }
+
+    final elapsed = DateTime.now().difference(lastManualDispatchAt);
+    return elapsed >= _manualCommandDebounce ||
+        request.payload != _lastDispatchedPayload;
+  }
+
+  bool _sameDeviceList(
+    List<BluetoothDeviceInfo> current,
+    List<BluetoothDeviceInfo> next,
+  ) {
+    if (identical(current, next)) {
+      return true;
+    }
+
+    if (current.length != next.length) {
+      return false;
+    }
+
+    for (var index = 0; index < current.length; index++) {
+      final currentDevice = current[index];
+      final nextDevice = next[index];
+      if (currentDevice.address != nextDevice.address ||
+          currentDevice.name != nextDevice.name) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  void _setRxIfChanged<T>(dynamic rx, T value) {
+    if (rx.value == value) {
+      return;
+    }
+
+    rx.value = value;
   }
 
   String _readServiceError({required String fallback}) {
@@ -327,4 +483,22 @@ class BluetoothController extends GetxController {
 
     return message;
   }
+}
+
+class _BluetoothPayloadRequest {
+  const _BluetoothPayloadRequest({
+    required this.payload,
+    required this.commandLabel,
+    required this.carCommand,
+    required this.buzzerCommand,
+    required this.isManual,
+    required this.reportDisconnected,
+  });
+
+  final String payload;
+  final String commandLabel;
+  final CarCommand? carCommand;
+  final BuzzerCommand? buzzerCommand;
+  final bool isManual;
+  final bool reportDisconnected;
 }

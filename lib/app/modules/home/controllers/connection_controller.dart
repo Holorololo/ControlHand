@@ -17,6 +17,10 @@ class ConnectionController extends GetxController {
       r'.\venv\Scripts\python.exe backend\backend.py --mode backend --input-source desktop --host 0.0.0.0 --port 5000';
   static const String mobileBackendCommand =
       r'.\venv\Scripts\python.exe backend\backend.py --mode backend --input-source mobile --host 0.0.0.0 --port 5000';
+  static const String _apiBaseUrlOverride = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: '',
+  );
   static const String _backendHostOverride = String.fromEnvironment(
     'BACKEND_HOST',
     defaultValue: '',
@@ -37,7 +41,7 @@ class ConnectionController extends GetxController {
     text: _resolveInitialHost(),
   );
   late final TextEditingController portTextController = TextEditingController(
-    text: _backendPortOverride.toString(),
+    text: _resolveInitialPort().toString(),
   );
 
   Rx<SocketConnectionStatus> get connectionStatus => _pollingService.status;
@@ -53,7 +57,9 @@ class ConnectionController extends GetxController {
       connectionStatus.value == SocketConnectionStatus.connected;
   bool get canAutoStartBackend => _backendProcessService.canAutoStart;
   bool get isMobileClient => GetPlatform.isAndroid || GetPlatform.isIOS;
-  bool get hasConfiguredHostOverride => _backendHostOverride.trim().isNotEmpty;
+  bool get hasConfiguredHostOverride =>
+      _apiBaseUrlOverride.trim().isNotEmpty ||
+      _backendHostOverride.trim().isNotEmpty;
   bool get isLoopbackHost => _isLoopbackHost(hostTextController.text.trim());
   bool get canRestartManagedBackend =>
       _backendProcessService.canManageHost(hostTextController.text.trim());
@@ -204,12 +210,29 @@ class ConnectionController extends GetxController {
   }
 
   String _resolveInitialHost() {
+    final apiBaseUrl = _apiBaseUrlOverride.trim();
+    if (apiBaseUrl.isNotEmpty) {
+      return apiBaseUrl;
+    }
+
     final hostOverride = _backendHostOverride.trim();
     if (hostOverride.isNotEmpty) {
       return hostOverride;
     }
 
     return '127.0.0.1';
+  }
+
+  int _resolveInitialPort() {
+    final apiBaseUrl = _apiBaseUrlOverride.trim();
+    if (apiBaseUrl.isNotEmpty) {
+      final uri = Uri.tryParse(apiBaseUrl);
+      if (uri != null && uri.hasPort) {
+        return uri.port;
+      }
+    }
+
+    return _backendPortOverride;
   }
 
   bool _shouldAutoConnectOnLaunch() {

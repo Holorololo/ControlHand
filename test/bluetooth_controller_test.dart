@@ -6,6 +6,7 @@ import 'package:movilcontrol/app/data/enums/buzzer_command.dart';
 import 'package:movilcontrol/app/data/enums/car_command.dart';
 import 'package:movilcontrol/app/data/models/auto_state.dart';
 import 'package:movilcontrol/app/modules/home/controllers/bluetooth_controller.dart';
+import 'package:movilcontrol/app/services/auto_state_polling_service.dart';
 import 'package:movilcontrol/app/services/bluetooth_command_service.dart';
 import 'package:movilcontrol/app/services/mock_bluetooth_command_service.dart';
 
@@ -133,6 +134,24 @@ void main() {
       expect(controller.lastPayload.value, '1');
     });
 
+    test('does not resend duplicated buzzer off payloads', () async {
+      final service = MockBluetoothCommandService();
+      final controller = BluetoothController(
+        bluetoothService: service,
+        enableStateSync: false,
+        startConnected: false,
+        initialOutputMode: BluetoothOutputMode.buzzerReal,
+      );
+
+      await controller.connect();
+      controller.enableBuzzerRealMode();
+      await controller.sendBuzzerCommandFromHandStatus('MANO ABIERTA');
+      await controller.sendBuzzerCommandFromHandStatus('MANO ABIERTA');
+
+      expect(service.sendCallCount, 1);
+      expect(controller.lastPayload.value, '0');
+    });
+
     test('loads paired devices and selects the first one by default', () async {
       final service = MockBluetoothCommandService()
         ..pairedDevices = const <BluetoothDeviceInfo>[
@@ -188,6 +207,7 @@ void main() {
 
         controller.onInit();
         expect(controller.isManualBuzzerControlEnabled.value, isFalse);
+        expect(controller.outputMode.value, BluetoothOutputMode.autoVirtual);
 
         polling.latestState.value = _buildState(
           handDetected: true,
@@ -198,6 +218,7 @@ void main() {
         await Future<void>.delayed(Duration.zero);
 
         expect(controller.isManualBuzzerControlEnabled.value, isTrue);
+        expect(controller.outputMode.value, BluetoothOutputMode.autoVirtual);
 
         controller.enableAutoVirtualMode();
         expect(controller.isManualBuzzerControlEnabled.value, isFalse);
@@ -229,6 +250,83 @@ void main() {
         await Future<void>.delayed(Duration.zero);
 
         expect(controller.isManualBuzzerControlEnabled.value, isTrue);
+        controller.onClose();
+      },
+    );
+
+    test(
+      'manual buzzer buttons do not send when bluetooth is disconnected',
+      () async {
+        final service = MockBluetoothCommandService();
+        final controller = BluetoothController(
+          bluetoothService: service,
+          enableStateSync: false,
+          startConnected: false,
+          initialOutputMode: BluetoothOutputMode.buzzerReal,
+        );
+
+        await controller.sendBuzzerOn();
+        await controller.sendBuzzerOff();
+
+        expect(service.sendCallCount, 0);
+        expect(
+          controller.errorMessage.value,
+          'Conecta el modulo Bluetooth antes de enviar comandos manuales.',
+        );
+      },
+    );
+
+    test(
+      'backend disconnected state does not break bluetooth connection',
+      () async {
+        final service = MockBluetoothCommandService();
+        final polling = FakeAutoStatePollingService();
+        final controller = BluetoothController(
+          bluetoothService: service,
+          pollingService: polling,
+          startConnected: false,
+          enableStateSync: true,
+        );
+
+        controller.onInit();
+        await controller.connect();
+        polling.status.value = SocketConnectionStatus.disconnected;
+        polling.errorMessage.value = 'Backend caido';
+
+        await controller.sendBuzzerOn();
+
+        expect(controller.isConnected.value, isTrue);
+        expect(service.sendCallCount, 1);
+        expect(service.lastCommand, '1');
+        controller.onClose();
+      },
+    );
+
+    test(
+      'bluetooth disconnected state does not break backend state flow',
+      () async {
+        final service = MockBluetoothCommandService();
+        final polling = FakeAutoStatePollingService();
+        final controller = BluetoothController(
+          bluetoothService: service,
+          pollingService: polling,
+          startConnected: false,
+          enableStateSync: true,
+        );
+
+        controller.onInit();
+        polling.status.value = SocketConnectionStatus.connected;
+        polling.latestState.value = _buildState(
+          handDetected: true,
+          handState: 'MANO ABIERTA',
+          fingersUp: 5,
+          carMoving: true,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(polling.status.value, SocketConnectionStatus.connected);
+        expect(controller.isManualBuzzerControlEnabled.value, isTrue);
+        expect(service.sendCallCount, 0);
         controller.onClose();
       },
     );

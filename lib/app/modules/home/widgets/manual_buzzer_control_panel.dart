@@ -10,6 +10,7 @@ class ManualBuzzerControlPanel extends StatelessWidget {
     required this.activeCommand,
     required this.onTurnOn,
     required this.onTurnOff,
+    this.helperMessage = '',
     super.key,
   });
 
@@ -17,6 +18,7 @@ class ManualBuzzerControlPanel extends StatelessWidget {
   final BuzzerCommand? activeCommand;
   final VoidCallback onTurnOn;
   final VoidCallback onTurnOff;
+  final String helperMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +30,10 @@ class ManualBuzzerControlPanel extends StatelessWidget {
             'Control manual del buzzer',
             style: Theme.of(context).textTheme.titleMedium,
           ),
+          if (helperMessage.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 8),
+            Text(helperMessage, style: Theme.of(context).textTheme.bodySmall),
+          ],
           const SizedBox(height: 12),
           LayoutBuilder(
             builder: (context, constraints) {

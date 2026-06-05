@@ -554,10 +554,16 @@ class LiveCameraFill extends StatelessWidget {
 }
 
 class PreviewImage extends StatelessWidget {
-  const PreviewImage({required this.bytes, this.cacheWidth, super.key});
+  const PreviewImage({
+    required this.bytes,
+    this.cacheWidth,
+    this.frameId,
+    super.key,
+  });
 
   final Uint8List bytes;
   final int? cacheWidth;
+  final int? frameId;
 
   @override
   Widget build(BuildContext context) {
@@ -567,6 +573,9 @@ class PreviewImage extends StatelessWidget {
 
     return RepaintBoundary(
       child: Image.memory(
+        key: ValueKey<Object>(
+          frameId ?? Object.hash(bytes.length, bytes.hashCode),
+        ),
         bytes,
         fit: BoxFit.cover,
         gaplessPlayback: true,

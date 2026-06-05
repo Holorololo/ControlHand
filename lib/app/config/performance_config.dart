@@ -3,6 +3,8 @@ import 'package:camera/camera.dart';
 class PerformanceConfig {
   const PerformanceConfig._();
 
+  static const int backendRequestTimeoutMs = 4000;
+  static const int frameUploadTimeoutMs = 3500;
   static const int pollingIntervalMs = 500;
   static const int backgroundPollingIntervalMs = 850;
   static const int previewRefreshIntervalMs = 700;

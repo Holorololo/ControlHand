@@ -74,6 +74,8 @@ class CarCommandPanel extends StatelessWidget {
               ? ManualBuzzerControlPanel(
                   isConnected: bluetoothStatusViewModel.isConnected,
                   activeCommand: activeBuzzerCommand,
+                  helperMessage:
+                      bluetoothStatusViewModel.manualBuzzerControlHint,
                   onTurnOn: onBuzzerOn,
                   onTurnOff: onBuzzerOff,
                 )

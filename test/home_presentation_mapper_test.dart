@@ -203,6 +203,7 @@ void main() {
 
       expect(preview.hasCameraPreview, isTrue);
       expect(preview.previewBytes, bytes);
+      expect(preview.previewFrameId, isNull);
       expect(preview.previewAspectRatio, closeTo(1280 / 720, 0.0001));
       expect(preview.statusLabel, 'Seguimiento activo');
       expect(preview.statusTone, HomeTone.good);
@@ -243,6 +244,7 @@ void main() {
         cameraSummary: 'Esperando primer preview procesado.',
         previewAspectRatio: 4 / 3,
         previewCacheWidth: null,
+        previewFrameId: null,
         hasCameraPreview: false,
         previewBytes: null,
       );

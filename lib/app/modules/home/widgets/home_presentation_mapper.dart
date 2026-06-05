@@ -181,6 +181,7 @@ class HomePresentationMapper {
       cameraSummary: controller.cameraSummary,
       previewAspectRatio: state.previewAspectRatio,
       previewCacheWidth: state.cameraFrameWidth,
+      previewFrameId: state.previewVersion,
       hasCameraPreview: state.hasCameraPreview,
       previewBytes: state.previewBytes,
     );
@@ -280,6 +281,7 @@ class HomePresentationMapper {
       cameraSummary: _input.cameraSummary,
       previewAspectRatio: _input.state.previewAspectRatio,
       previewCacheWidth: _input.state.cameraFrameWidth,
+      previewFrameId: _input.state.previewVersion,
       hasCameraPreview: _input.state.hasCameraPreview,
       previewBytes: _input.state.previewBytes,
     );

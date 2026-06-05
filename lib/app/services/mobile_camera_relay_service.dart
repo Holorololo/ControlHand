@@ -42,6 +42,8 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
   int _uploadedFrameCount = 0;
   int _failedFrameCount = 0;
   int _droppedBusyFrameCount = 0;
+  int _intervalSkippedFrameCount = 0;
+  int _uploadAttemptCount = 0;
 
   bool get supported => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
@@ -55,13 +57,15 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
     super.onInit();
     WidgetsBinding.instance.addObserver(this);
     if (supported) {
-      status.value = MobileCameraRelayStatus.idle;
-      infoMessage.value =
-          'La camara del celular se activara cuando te conectes al backend.';
+      _setStatusIfChanged(MobileCameraRelayStatus.idle);
+      _setInfoMessageIfChanged(
+        'La camara del celular se activara cuando te conectes al backend.',
+      );
     } else {
-      status.value = MobileCameraRelayStatus.unsupported;
-      infoMessage.value =
-          'La camara del celular solo se usa en Android o iPhone.';
+      _setStatusIfChanged(MobileCameraRelayStatus.unsupported);
+      _setInfoMessageIfChanged(
+        'La camara del celular solo se usa en Android o iPhone.',
+      );
     }
   }
 
@@ -75,7 +79,7 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
 
   Future<void> startRelay({required String host, required int port}) async {
     if (!supported) {
-      status.value = MobileCameraRelayStatus.unsupported;
+      _setStatusIfChanged(MobileCameraRelayStatus.unsupported);
       return;
     }
 
@@ -89,6 +93,8 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
     _uploadedFrameCount = 0;
     _failedFrameCount = 0;
     _droppedBusyFrameCount = 0;
+    _intervalSkippedFrameCount = 0;
+    _uploadAttemptCount = 0;
     lastFrameSentAt.value = null;
 
     await _ensureCameraReady();
@@ -102,9 +108,10 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
       await cameraController.startImageStream(_handleCameraImage);
     }
 
-    status.value = MobileCameraRelayStatus.streaming;
-    infoMessage.value =
-        'Camara del celular activa. Enviando frames a $_baseUrl.';
+    _setStatusIfChanged(MobileCameraRelayStatus.streaming);
+    _setInfoMessageIfChanged(
+      'Camara del celular activa. Enviando frames a $_baseUrl.',
+    );
   }
 
   Future<void> stopRelay({bool disposeCamera = false}) async {
@@ -120,19 +127,22 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
 
     if (disposeCamera) {
       await _disposeCameraController();
-      status.value = supported
-          ? MobileCameraRelayStatus.idle
-          : MobileCameraRelayStatus.unsupported;
+      _setStatusIfChanged(
+        supported
+            ? MobileCameraRelayStatus.idle
+            : MobileCameraRelayStatus.unsupported,
+      );
       return;
     }
 
     if (hasPreview) {
-      status.value = MobileCameraRelayStatus.ready;
-      infoMessage.value = 'Camara del celular lista, sin enviar frames.';
+      _setStatusIfChanged(MobileCameraRelayStatus.ready);
+      _setInfoMessageIfChanged('Camara del celular lista, sin enviar frames.');
     } else if (supported) {
-      status.value = MobileCameraRelayStatus.idle;
-      infoMessage.value =
-          'La camara del celular se activara cuando te conectes al backend.';
+      _setStatusIfChanged(MobileCameraRelayStatus.idle);
+      _setInfoMessageIfChanged(
+        'La camara del celular se activara cuando te conectes al backend.',
+      );
     }
   }
 
@@ -144,14 +154,14 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
       return;
     }
 
-    status.value = MobileCameraRelayStatus.initializing;
-    infoMessage.value = 'Abriendo la camara del celular...';
+    _setStatusIfChanged(MobileCameraRelayStatus.initializing);
+    _setInfoMessageIfChanged('Abriendo la camara del celular...');
 
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
-        status.value = MobileCameraRelayStatus.failed;
-        infoMessage.value = 'No se encontro una camara disponible.';
+        _setStatusIfChanged(MobileCameraRelayStatus.failed);
+        _setInfoMessageIfChanged('No se encontro una camara disponible.');
         return;
       }
 
@@ -181,21 +191,25 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
 
       _selectedCamera = selectedCamera;
       _controller = controller;
-      status.value = MobileCameraRelayStatus.ready;
-      infoMessage.value = 'Camara del celular lista.';
+      _setStatusIfChanged(MobileCameraRelayStatus.ready);
+      _setInfoMessageIfChanged('Camara del celular lista.');
     } on CameraException catch (error) {
       if (error.code == 'CameraAccessDenied' ||
           error.code == 'CameraAccessDeniedWithoutPrompt' ||
           error.code == 'CameraAccessRestricted') {
-        status.value = MobileCameraRelayStatus.permissionDenied;
-        infoMessage.value = 'No se concedio acceso a la camara del celular.';
+        _setStatusIfChanged(MobileCameraRelayStatus.permissionDenied);
+        _setInfoMessageIfChanged(
+          'No se concedio acceso a la camara del celular.',
+        );
       } else {
-        status.value = MobileCameraRelayStatus.failed;
-        infoMessage.value = 'No se pudo inicializar la camara. ${error.code}';
+        _setStatusIfChanged(MobileCameraRelayStatus.failed);
+        _setInfoMessageIfChanged(
+          'No se pudo inicializar la camara. ${error.code}',
+        );
       }
     } catch (error) {
-      status.value = MobileCameraRelayStatus.failed;
-      infoMessage.value = 'Error al abrir la camara del celular.';
+      _setStatusIfChanged(MobileCameraRelayStatus.failed);
+      _setInfoMessageIfChanged('Error al abrir la camara del celular.');
     }
   }
 
@@ -213,12 +227,15 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
 
     if (_uploadInProgress) {
       _droppedBusyFrameCount++;
+      _logDroppedBusyFrame();
       return;
     }
 
     final lastFrameAt = lastFrameSentAt.value;
     if (lastFrameAt != null &&
         DateTime.now().difference(lastFrameAt) < _frameInterval) {
+      _intervalSkippedFrameCount++;
+      _logSkippedIntervalFrame();
       return;
     }
 
@@ -394,27 +411,43 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
 
   Future<void> _uploadFrame(Uint8List jpegBytes) async {
     final stopwatch = Stopwatch()..start();
+    _uploadAttemptCount++;
+    _logUploadStarted(jpegBytes.length);
 
     try {
       final backendApiRepository = _backendApiRepository;
       if (backendApiRepository == null) {
-        status.value = MobileCameraRelayStatus.failed;
-        infoMessage.value =
-            'No se pudo enviar el frame al backend. Conexion no inicializada.';
+        _logUploadFinished(
+          elapsed: stopwatch.elapsed,
+          outcome: 'skipped-no-backend',
+        );
         return;
       }
 
       await backendApiRepository.sendFrame(jpegBytes);
       _uploadedFrameCount++;
-      status.value = MobileCameraRelayStatus.streaming;
-      infoMessage.value =
-          'Camara del celular activa. Backend procesando frames remotos.';
+      _setStatusIfChanged(MobileCameraRelayStatus.streaming);
+      _setInfoMessageIfChanged(
+        'Camara del celular activa. Backend procesando frames remotos.',
+      );
       _logFrameMetrics(stopwatch.elapsed);
+    } on TimeoutException catch (error) {
+      _failedFrameCount++;
+      if (_streamRequested) {
+        _setStatusIfChanged(MobileCameraRelayStatus.streaming);
+        _setInfoMessageIfChanged(
+          'El backend tardo demasiado en responder un frame. Reintentando...',
+        );
+      }
+      _logUploadTimeout(stopwatch.elapsed, error);
     } catch (error) {
       _failedFrameCount++;
-      status.value = MobileCameraRelayStatus.failed;
-      infoMessage.value =
-          'No se pudo enviar el frame al backend. ${error.toString()}';
+      if (_streamRequested) {
+        _setStatusIfChanged(MobileCameraRelayStatus.streaming);
+        _setInfoMessageIfChanged(
+          'No se pudo enviar un frame al backend. Reintentando...',
+        );
+      }
       if (kDebugMode) {
         debugPrint(
           'MobileCameraRelayService -> frame failed after '
@@ -423,6 +456,10 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
         );
       }
     } finally {
+      _logUploadFinished(
+        elapsed: stopwatch.elapsed,
+        outcome: _streamRequested ? 'ready-next-frame' : 'relay-stopped',
+      );
       _uploadInProgress = false;
     }
   }
@@ -440,8 +477,88 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
       'MobileCameraRelayService -> frames=$_uploadedFrameCount '
       'last=${elapsed.inMilliseconds}ms '
       'failed=$_failedFrameCount dropped=$_droppedBusyFrameCount '
+      'interval_skips=$_intervalSkippedFrameCount '
       'quality=${PerformanceConfig.jpegQuality} '
       'limit=${PerformanceConfig.maxFrameWidth}x${PerformanceConfig.maxFrameHeight}',
+    );
+  }
+
+  void _logDroppedBusyFrame() {
+    if (!kDebugMode) {
+      return;
+    }
+
+    final count = _droppedBusyFrameCount;
+    if (count != 1 && count % PerformanceConfig.performanceLogSampleSize != 0) {
+      return;
+    }
+
+    debugPrint(
+      'MobileCameraRelayService -> frame dropped while upload busy '
+      '(count=$count)',
+    );
+  }
+
+  void _logSkippedIntervalFrame() {
+    if (!kDebugMode) {
+      return;
+    }
+
+    final count = _intervalSkippedFrameCount;
+    if (count != 1 &&
+        count % (PerformanceConfig.performanceLogSampleSize * 2) != 0) {
+      return;
+    }
+
+    debugPrint(
+      'MobileCameraRelayService -> frame skipped by interval '
+      '(count=$count, every=${_frameInterval.inMilliseconds}ms)',
+    );
+  }
+
+  void _logUploadStarted(int byteLength) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    final count = _uploadAttemptCount;
+    if (count != 1 && count % PerformanceConfig.performanceLogSampleSize != 0) {
+      return;
+    }
+
+    debugPrint(
+      'MobileCameraRelayService -> upload started '
+      '(attempt=$count, bytes=$byteLength)',
+    );
+  }
+
+  void _logUploadFinished({
+    required Duration elapsed,
+    required String outcome,
+  }) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    final count = _uploadAttemptCount;
+    if (count != 1 && count % PerformanceConfig.performanceLogSampleSize != 0) {
+      return;
+    }
+
+    debugPrint(
+      'MobileCameraRelayService -> upload finished '
+      '(attempt=$count, outcome=$outcome, ${elapsed.inMilliseconds}ms)',
+    );
+  }
+
+  void _logUploadTimeout(Duration elapsed, TimeoutException error) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    debugPrint(
+      'MobileCameraRelayService -> upload timeout after '
+      '${elapsed.inMilliseconds}ms: ${error.message ?? 'sin mensaje'}',
     );
   }
 
@@ -494,8 +611,8 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
 
       unawaited(_disposeCameraController());
       if (supported) {
-        status.value = MobileCameraRelayStatus.idle;
-        infoMessage.value = 'Camara del celular en pausa.';
+        _setStatusIfChanged(MobileCameraRelayStatus.idle);
+        _setInfoMessageIfChanged('Camara del celular en pausa.');
       }
 
       _selectedCamera = camera;
@@ -524,5 +641,21 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
     _client?.close();
     unawaited(stopRelay(disposeCamera: true));
     super.onClose();
+  }
+
+  void _setStatusIfChanged(MobileCameraRelayStatus nextStatus) {
+    if (status.value == nextStatus) {
+      return;
+    }
+
+    status.value = nextStatus;
+  }
+
+  void _setInfoMessageIfChanged(String nextMessage) {
+    if (infoMessage.value == nextMessage) {
+      return;
+    }
+
+    infoMessage.value = nextMessage;
   }
 }

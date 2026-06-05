@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import '../../config/performance_config.dart';
 import '../dtos/backend_health_dto.dart';
 import '../dtos/backend_snapshot_dto.dart';
 
@@ -19,7 +21,11 @@ class BackendApiRepository {
   Future<BackendHealthDto> getHealth() async {
     final response = await _client
         .get(Uri.parse('$_baseUrl/health'))
-        .timeout(const Duration(seconds: 4));
+        .timeout(
+          const Duration(
+            milliseconds: PerformanceConfig.backendRequestTimeoutMs,
+          ),
+        );
 
     if (response.statusCode != 200) {
       throw Exception('Estado HTTP ${response.statusCode}');
@@ -31,7 +37,11 @@ class BackendApiRepository {
   Future<BackendSnapshotDto> getState() async {
     final response = await _client
         .get(Uri.parse('$_baseUrl/state'))
-        .timeout(const Duration(seconds: 4));
+        .timeout(
+          const Duration(
+            milliseconds: PerformanceConfig.backendRequestTimeoutMs,
+          ),
+        );
 
     if (response.statusCode != 200) {
       throw Exception('Estado HTTP ${response.statusCode}');
@@ -47,7 +57,11 @@ class BackendApiRepository {
 
     final response = await _client
         .get(previewUri)
-        .timeout(const Duration(seconds: 4));
+        .timeout(
+          const Duration(
+            milliseconds: PerformanceConfig.backendRequestTimeoutMs,
+          ),
+        );
 
     if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
       return null;
@@ -63,7 +77,12 @@ class BackendApiRepository {
           headers: const <String, String>{'Content-Type': 'image/jpeg'},
           body: frameBytes,
         )
-        .timeout(const Duration(seconds: 4));
+        .timeout(
+          const Duration(milliseconds: PerformanceConfig.frameUploadTimeoutMs),
+          onTimeout: () => throw TimeoutException(
+            'El backend tardo demasiado en responder al frame.',
+          ),
+        );
 
     final payload = response.body;
     final decoded = payload.isEmpty

@@ -16,6 +16,7 @@ class AutoState {
     required this.backendMessage,
     required this.backendLastError,
     this.previewBytes,
+    this.previewVersion,
     this.cameraFrameWidth,
     this.cameraFrameHeight,
   });
@@ -34,6 +35,7 @@ class AutoState {
       backendMessage: 'Esperando backend',
       backendLastError: '',
       previewBytes: null,
+      previewVersion: null,
       cameraFrameWidth: null,
       cameraFrameHeight: null,
     );
@@ -42,12 +44,14 @@ class AutoState {
   factory AutoState.fromJson(
     Map<String, dynamic> json, {
     Uint8List? previewBytes,
+    int? previewVersion,
     int? previewWidth,
     int? previewHeight,
   }) {
     return AutoState.fromSnapshotDto(
       BackendSnapshotDto.fromJson(json),
       previewBytes: previewBytes,
+      previewVersion: previewVersion,
       previewWidth: previewWidth,
       previewHeight: previewHeight,
     );
@@ -56,6 +60,7 @@ class AutoState {
   factory AutoState.fromSnapshotDto(
     BackendSnapshotDto snapshot, {
     Uint8List? previewBytes,
+    int? previewVersion,
     int? previewWidth,
     int? previewHeight,
   }) {
@@ -72,6 +77,7 @@ class AutoState {
       backendMessage: snapshot.backendMessage,
       backendLastError: snapshot.backendLastError,
       previewBytes: previewBytes,
+      previewVersion: previewVersion ?? snapshot.cameraPreviewVersion,
       cameraFrameWidth: previewWidth ?? snapshot.cameraPreviewWidth,
       cameraFrameHeight: previewHeight ?? snapshot.cameraPreviewHeight,
     );
@@ -89,6 +95,7 @@ class AutoState {
   final String backendMessage;
   final String backendLastError;
   final Uint8List? previewBytes;
+  final int? previewVersion;
   final int? cameraFrameWidth;
   final int? cameraFrameHeight;
 
@@ -105,6 +112,7 @@ class AutoState {
     String? backendMessage,
     String? backendLastError,
     Uint8List? previewBytes,
+    int? previewVersion,
     int? cameraFrameWidth,
     int? cameraFrameHeight,
     bool clearPreview = false,
@@ -122,6 +130,9 @@ class AutoState {
       backendMessage: backendMessage ?? this.backendMessage,
       backendLastError: backendLastError ?? this.backendLastError,
       previewBytes: clearPreview ? null : (previewBytes ?? this.previewBytes),
+      previewVersion: clearPreview
+          ? null
+          : (previewVersion ?? this.previewVersion),
       cameraFrameWidth: clearPreview
           ? null
           : (cameraFrameWidth ?? this.cameraFrameWidth),
@@ -165,6 +176,7 @@ class AutoState {
       'backend_message': backendMessage,
       'backend_last_error': backendLastError,
       'camera_preview_available': hasCameraPreview,
+      'camera_preview_version': previewVersion,
       'camera_preview_width': cameraFrameWidth,
       'camera_preview_height': cameraFrameHeight,
     };

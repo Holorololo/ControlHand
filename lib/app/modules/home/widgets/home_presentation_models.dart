@@ -223,6 +223,7 @@ class ProcessedPreviewViewModel {
     required this.cameraSummary,
     required this.previewAspectRatio,
     required this.previewCacheWidth,
+    required this.previewFrameId,
     required this.hasCameraPreview,
     required this.previewBytes,
   });
@@ -232,6 +233,7 @@ class ProcessedPreviewViewModel {
     required String cameraSummary,
     required double previewAspectRatio,
     required int? previewCacheWidth,
+    required int? previewFrameId,
     required bool hasCameraPreview,
     required Uint8List? previewBytes,
   }) {
@@ -241,6 +243,7 @@ class ProcessedPreviewViewModel {
       cameraSummary: cameraSummary,
       previewAspectRatio: previewAspectRatio,
       previewCacheWidth: previewCacheWidth,
+      previewFrameId: previewFrameId,
       hasCameraPreview: hasCameraPreview,
       previewBytes: previewBytes,
     );
@@ -251,6 +254,7 @@ class ProcessedPreviewViewModel {
   final String cameraSummary;
   final double previewAspectRatio;
   final int? previewCacheWidth;
+  final int? previewFrameId;
   final bool hasCameraPreview;
   final Uint8List? previewBytes;
 }
@@ -265,6 +269,7 @@ class BluetoothStatusViewModel {
     required this.outputModeTone,
     required this.isBuzzerOutputMode,
     required this.showManualBuzzerControl,
+    required this.manualBuzzerControlHint,
     required this.lastCommandLabel,
     required this.lastPayloadLabel,
     required this.toggleActionLabel,
@@ -324,6 +329,9 @@ class BluetoothStatusViewModel {
       showManualBuzzerControl:
           outputMode == BluetoothOutputMode.buzzerReal ||
           isManualBuzzerControlEnabled,
+      manualBuzzerControlHint: isManualBuzzerControlEnabled
+          ? 'Mano abierta detectada: control manual habilitado'
+          : '',
       lastCommandLabel: lastCommandLabel.isEmpty
           ? 'Sin comando'
           : lastCommandLabel,
@@ -351,6 +359,7 @@ class BluetoothStatusViewModel {
   final HomeTone outputModeTone;
   final bool isBuzzerOutputMode;
   final bool showManualBuzzerControl;
+  final String manualBuzzerControlHint;
   final String lastCommandLabel;
   final String lastPayloadLabel;
   final String toggleActionLabel;

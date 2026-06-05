@@ -21,6 +21,7 @@ class AutoStatePollingService extends GetxService {
   Timer? _pollTimer;
   Timer? _reconnectTimer;
   bool _manualDisconnect = false;
+  bool _connectInProgress = false;
   bool _pollInProgress = false;
   bool _disposed = false;
   bool _previewStreamingEnabled = true;
@@ -29,6 +30,7 @@ class AutoStatePollingService extends GetxService {
   int? _lastPreviewHeight;
   int? _lastPreviewVersion;
   DateTime? _lastPreviewRefreshAt;
+  int _previewRefreshCount = 0;
   int _consecutiveFailureCount = 0;
   int _successfulPollCount = 0;
   int _failedPollCount = 0;
@@ -48,39 +50,55 @@ class AutoStatePollingService extends GetxService {
         );
 
   Future<void> connect({String? host, int? port}) async {
+    if (_connectInProgress || _disposed) {
+      return;
+    }
+
+    _connectInProgress = true;
     final endpoint = _normalizeEndpoint(host: host, port: port);
     _scheme = endpoint.scheme;
     _host = endpoint.host;
     _port = endpoint.port;
     _manualDisconnect = false;
-    errorMessage.value = '';
-
-    await _closeConnection();
-    status.value = SocketConnectionStatus.connecting;
-    _client = http.Client();
-    _backendApiRepository = BackendApiRepository(
-      client: _client!,
-      baseUrl: baseUrl,
-    );
+    _setRxIfChanged<String>(errorMessage, '');
 
     try {
+      await _closeConnection();
+      _setRxIfChanged<SocketConnectionStatus>(
+        status,
+        SocketConnectionStatus.connecting,
+      );
+      _client = http.Client();
+      _backendApiRepository = BackendApiRepository(
+        client: _client!,
+        baseUrl: baseUrl,
+      );
+
       await _backendApiRepository!.getHealth();
 
       _consecutiveFailureCount = 0;
-      status.value = SocketConnectionStatus.connected;
+      _setRxIfChanged<SocketConnectionStatus>(
+        status,
+        SocketConnectionStatus.connected,
+      );
       await _pollBackend();
       _startPolling();
     } catch (error) {
       _handleConnectionFailure(error);
+    } finally {
+      _connectInProgress = false;
     }
   }
 
   Future<void> disconnect() async {
     _manualDisconnect = true;
     _reconnectTimer?.cancel();
-    errorMessage.value = '';
+    _setRxIfChanged<String>(errorMessage, '');
     await _closeConnection();
-    status.value = SocketConnectionStatus.disconnected;
+    _setRxIfChanged<SocketConnectionStatus>(
+      status,
+      SocketConnectionStatus.disconnected,
+    );
   }
 
   Future<void> _pollBackend() async {
@@ -111,6 +129,7 @@ class AutoStatePollingService extends GetxService {
       final state = AutoState.fromSnapshotDto(
         snapshot,
         previewBytes: _lastPreviewBytes,
+        previewVersion: _lastPreviewVersion,
         previewWidth: _lastPreviewWidth,
         previewHeight: _lastPreviewHeight,
       );
@@ -121,8 +140,11 @@ class AutoStatePollingService extends GetxService {
         latestState.value = state;
       }
       lastPacketAt.value = state.timestamp;
-      errorMessage.value = '';
-      status.value = SocketConnectionStatus.connected;
+      _setRxIfChanged<String>(errorMessage, '');
+      _setRxIfChanged<SocketConnectionStatus>(
+        status,
+        SocketConnectionStatus.connected,
+      );
       _maybeLogPollingMetrics(stopwatch.elapsed);
     } catch (error) {
       _handlePollingFailure(error);
@@ -161,13 +183,21 @@ class AutoStatePollingService extends GetxService {
     }
 
     _lastPreviewRefreshAt = DateTime.now();
-    final previewBytes = await _backendApiRepository!.getPreview(
-      version: previewVersion,
-    );
+    try {
+      final previewBytes = await _backendApiRepository!.getPreview(
+        version: previewVersion,
+      );
 
-    if (previewBytes != null && previewBytes.isNotEmpty) {
-      _lastPreviewBytes = previewBytes;
-      _lastPreviewVersion = previewVersion;
+      if (previewBytes != null && previewBytes.isNotEmpty) {
+        _lastPreviewBytes = previewBytes;
+        _lastPreviewVersion = previewVersion;
+        _previewRefreshCount++;
+        _logPreviewRefresh(previewVersion);
+      }
+    } on TimeoutException catch (error) {
+      _logPreviewTimeout(error);
+    } catch (error) {
+      _logPreviewFailure(error);
     }
   }
 
@@ -201,9 +231,15 @@ class AutoStatePollingService extends GetxService {
   void _handlePollingFailure(Object error) {
     _failedPollCount++;
     _consecutiveFailureCount++;
-    errorMessage.value =
-        'Se perdio la conexion con el backend Flask. ${error.toString()}';
-    status.value = SocketConnectionStatus.disconnected;
+    _setRxIfChanged<String>(
+      errorMessage,
+      'Se perdio la conexion con el backend Flask. '
+      '${_normalizeBackendError(error)}',
+    );
+    _setRxIfChanged<SocketConnectionStatus>(
+      status,
+      SocketConnectionStatus.disconnected,
+    );
     if (kDebugMode) {
       debugPrint(
         'AutoStatePollingService -> poll failed '
@@ -216,8 +252,14 @@ class AutoStatePollingService extends GetxService {
   void _handleConnectionFailure(Object error) {
     _failedPollCount++;
     _consecutiveFailureCount++;
-    errorMessage.value = 'No se pudo conectar a $baseUrl. ${error.toString()}';
-    status.value = SocketConnectionStatus.disconnected;
+    _setRxIfChanged<String>(
+      errorMessage,
+      'No se pudo conectar a $baseUrl. ${_normalizeBackendError(error)}',
+    );
+    _setRxIfChanged<SocketConnectionStatus>(
+      status,
+      SocketConnectionStatus.disconnected,
+    );
     if (kDebugMode) {
       debugPrint(
         'AutoStatePollingService -> connect failed '
@@ -265,6 +307,7 @@ class AutoStatePollingService extends GetxService {
     _lastPreviewHeight = null;
     _lastPreviewVersion = null;
     _lastPreviewRefreshAt = null;
+    _previewRefreshCount = 0;
   }
 
   bool _hasMeaningfulStateChanged(AutoState? previous, AutoState next) {
@@ -282,6 +325,7 @@ class AutoStatePollingService extends GetxService {
         previous.backendReady != next.backendReady ||
         previous.backendMessage != next.backendMessage ||
         previous.backendLastError != next.backendLastError ||
+        previous.previewVersion != next.previewVersion ||
         !identical(previous.previewBytes, next.previewBytes) ||
         previous.hasCameraPreview != next.hasCameraPreview ||
         previous.cameraFrameWidth != next.cameraFrameWidth ||
@@ -304,6 +348,66 @@ class AutoStatePollingService extends GetxService {
       'preview=${_previewStreamingEnabled ? 'on' : 'off'} '
       'failures=$_failedPollCount',
     );
+  }
+
+  void _logPreviewRefresh(int? previewVersion) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    final count = _previewRefreshCount;
+    if (count != 1 && count % PerformanceConfig.performanceLogSampleSize != 0) {
+      return;
+    }
+
+    debugPrint(
+      'AutoStatePollingService -> preview updated '
+      '(count=$count, version=${previewVersion ?? -1})',
+    );
+  }
+
+  void _logPreviewTimeout(TimeoutException error) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    debugPrint(
+      'AutoStatePollingService -> preview timeout: '
+      '${error.message ?? 'sin mensaje'}',
+    );
+  }
+
+  void _logPreviewFailure(Object error) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    debugPrint('AutoStatePollingService -> preview refresh failed: $error');
+  }
+
+  String _normalizeBackendError(Object error) {
+    var message = error.toString().trim();
+    const prefixes = <String>['Exception:', 'Bad state:'];
+
+    for (final prefix in prefixes) {
+      if (message.startsWith(prefix)) {
+        message = message.substring(prefix.length).trim();
+      }
+    }
+
+    if (message.isEmpty) {
+      return 'Error inesperado al consultar el backend.';
+    }
+
+    return message;
+  }
+
+  void _setRxIfChanged<T>(dynamic rx, T value) {
+    if (rx.value == value) {
+      return;
+    }
+
+    rx.value = value;
   }
 
   _Endpoint _normalizeEndpoint({String? host, int? port}) {
