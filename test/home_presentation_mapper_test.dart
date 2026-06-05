@@ -13,17 +13,17 @@ import 'package:movilcontrol/app/services/mobile_camera_relay_service.dart';
 
 void main() {
   group('HomePresentationMapper', () {
-    test('maps open hand to the expected visual state', () {
+    test('maps open hand to the expected stop visual state', () {
       final mapper = HomePresentationMapper(
         input: _buildInput(
           state: _buildState(
             handDetected: true,
             handState: 'MANO ABIERTA',
             fingersUp: 5,
-            carMoving: true,
+            carMoving: false,
           ),
           handSummary: 'MANO ABIERTA',
-          movementLabel: 'Auto avanzando',
+          movementLabel: 'Auto detenido',
         ),
       );
 
@@ -31,22 +31,22 @@ void main() {
 
       expect(handStatus.summary, 'MANO ABIERTA');
       expect(handStatus.fingersValue, '5');
-      expect(handStatus.commandValue, 'Adelante');
-      expect(handStatus.payloadValue, 'F');
+      expect(handStatus.commandValue, 'Parar');
+      expect(handStatus.payloadValue, 'S');
       expect(handStatus.cameraTone, HomeTone.good);
     });
 
-    test('maps closed hand to the expected visual state', () {
+    test('maps closed hand to the expected forward visual state', () {
       final mapper = HomePresentationMapper(
         input: _buildInput(
           state: _buildState(
             handDetected: true,
             handState: 'MANO CERRADA',
             fingersUp: 0,
-            carMoving: false,
+            carMoving: true,
           ),
           handSummary: 'MANO CERRADA',
-          movementLabel: 'Auto detenido',
+          movementLabel: 'Auto avanzando',
           mobileCameraInfoMessage: 'Camara del celular lista',
           mobileCameraStatus: MobileCameraRelayStatus.ready,
         ),
@@ -56,8 +56,8 @@ void main() {
 
       expect(handStatus.summary, 'MANO CERRADA');
       expect(handStatus.fingersValue, '0');
-      expect(handStatus.commandValue, 'Parar');
-      expect(handStatus.payloadValue, 'S');
+      expect(handStatus.commandValue, 'Adelante');
+      expect(handStatus.payloadValue, 'F');
       expect(handStatus.detailMessage, 'Camara del celular lista');
       expect(handStatus.cameraTone, HomeTone.soft);
     });
@@ -84,30 +84,30 @@ void main() {
       expect(handStatus.payloadValue, 'S');
     });
 
-    test('maps moving car to the expected visual state', () {
+    test('maps stopped open hand to the expected visual state', () {
       final mapper = HomePresentationMapper(
         input: _buildInput(
           state: _buildState(
             handDetected: true,
             handState: 'MANO ABIERTA',
             fingersUp: 5,
-            carMoving: true,
+            carMoving: false,
             carX: 540,
             speed: 18,
           ),
-          movementLabel: 'Auto avanzando',
+          movementLabel: 'Auto detenido',
         ),
       );
 
       final carStatus = mapper.carStatus;
 
-      expect(carStatus.movementLabel, 'Auto avanzando');
-      expect(carStatus.statusLabel, 'F');
-      expect(carStatus.statusTone, HomeTone.good);
+      expect(carStatus.movementLabel, 'Auto detenido');
+      expect(carStatus.statusLabel, 'STOP');
+      expect(carStatus.statusTone, HomeTone.alert);
       expect(carStatus.speedValue, '18');
-      expect(carStatus.isMoving, isTrue);
-      expect(carStatus.commandLabel, 'Adelante');
-      expect(carStatus.payloadLabel, 'F');
+      expect(carStatus.isMoving, isFalse);
+      expect(carStatus.commandLabel, 'Parar');
+      expect(carStatus.payloadLabel, 'S');
       expect(carStatus.carProgress, greaterThan(0));
     });
 
@@ -198,7 +198,7 @@ void main() {
             handDetected: true,
             handState: 'MANO ABIERTA',
             fingersUp: 5,
-            carMoving: true,
+            carMoving: false,
             previewBytes: bytes,
             previewWidth: 1280,
             previewHeight: 720,
@@ -297,22 +297,22 @@ AutoState _buildState({
     command: !handDetected
         ? 'stop'
         : switch (fingersUp) {
-            0 => 'stop',
+            0 => 'forward',
             1 => 'left',
             2 => 'right',
             3 => 'horn',
             4 => 'backward',
-            _ => 'forward',
+            _ => 'stop',
           },
     payload: !handDetected
         ? 'S'
         : switch (fingersUp) {
-            0 => 'S',
+            0 => 'F',
             1 => 'L',
             2 => 'R',
             3 => 'H',
             4 => 'B',
-            _ => 'F',
+            _ => 'S',
           },
     carMoving: carMoving,
     carX: carX,
@@ -351,7 +351,7 @@ HomePresentationInput _buildInput({
   String cameraSummary = 'Vista en vivo recibida desde Flask/OpenCV.',
   String mobileCameraInfoMessage = '',
   String packetLabel = '12:00:00',
-  String movementLabel = 'Auto avanzando',
+  String movementLabel = 'Auto detenido',
   String errorMessage = '',
 }) {
   return HomePresentationInput(
@@ -361,7 +361,7 @@ HomePresentationInput _buildInput({
           handDetected: true,
           handState: 'MANO ABIERTA',
           fingersUp: 5,
-          carMoving: true,
+          carMoving: false,
           previewBytes: Uint8List.fromList(<int>[1, 2, 3]),
           previewWidth: 900,
           previewHeight: 600,

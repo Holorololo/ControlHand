@@ -41,7 +41,7 @@ void main() {
       expect(services.polling.previewStreamingToggles, isEmpty);
     });
 
-    test('maps open hand to moving car and live preview summary', () {
+    test('maps open hand to stop command and live preview summary', () {
       final services = _registerServices();
       Get.put<ConnectionController>(
         TestConnectionController(autoConnect: false),
@@ -51,7 +51,7 @@ void main() {
         handDetected: true,
         handState: 'MANO ABIERTA',
         fingersUp: 5,
-        carMoving: true,
+        carMoving: false,
         previewBytes: Uint8List.fromList(<int>[1, 2, 3]),
         previewWidth: 1280,
         previewHeight: 720,
@@ -61,7 +61,7 @@ void main() {
       services.polling.lastPacketAt.value = state.timestamp;
 
       expect(controller.handSummary, 'Mano abierta');
-      expect(controller.movementLabel, 'Comando Adelante');
+      expect(controller.movementLabel, 'Comando Parar');
       expect(
         controller.cameraSummary,
         'Vista en vivo recibida desde Flask/OpenCV.',
@@ -69,7 +69,7 @@ void main() {
       expect(controller.packetLabel, '12:34:56');
     });
 
-    test('maps closed hand to stopped car', () {
+    test('maps closed hand to forward command', () {
       final services = _registerServices();
       Get.put<ConnectionController>(
         TestConnectionController(autoConnect: false),
@@ -79,14 +79,14 @@ void main() {
         handDetected: true,
         handState: 'MANO CERRADA',
         fingersUp: 0,
-        carMoving: false,
+        carMoving: true,
         backendMessage: 'Detenido por gesto',
       );
 
       services.polling.latestState.value = state;
 
       expect(controller.handSummary, 'Mano cerrada');
-      expect(controller.movementLabel, 'Comando Parar');
+      expect(controller.movementLabel, 'Comando Adelante');
       expect(controller.cameraSummary, 'Detenido por gesto');
     });
 
@@ -178,7 +178,7 @@ void main() {
         handDetected: true,
         handState: 'MANO ABIERTA',
         fingersUp: 5,
-        carMoving: true,
+        carMoving: false,
         backendMessage: '',
       );
 
@@ -192,7 +192,7 @@ void main() {
         'Conectado, esperando el primer frame de la camara.',
       );
       expect(controller.statePreview, contains('"hand_state": "MANO ABIERTA"'));
-      expect(controller.statePreview, contains('"car_moving": true'));
+      expect(controller.statePreview, contains('"car_moving": false'));
     });
   });
 }
@@ -246,22 +246,22 @@ AutoState _buildState({
     command: !handDetected
         ? 'stop'
         : switch (fingersUp) {
-            0 => 'stop',
+            0 => 'forward',
             1 => 'left',
             2 => 'right',
             3 => 'horn',
             4 => 'backward',
-            _ => 'forward',
+            _ => 'stop',
           },
     payload: !handDetected
         ? 'S'
         : switch (fingersUp) {
-            0 => 'S',
+            0 => 'F',
             1 => 'L',
             2 => 'R',
             3 => 'H',
             4 => 'B',
-            _ => 'F',
+            _ => 'S',
           },
     carMoving: carMoving,
     carX: carMoving ? 420 : 0,

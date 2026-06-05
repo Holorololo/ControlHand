@@ -30,7 +30,8 @@ void main() {
       expect(service.errorMessage.value, isEmpty);
       expect(service.latestState.value, isNotNull);
       expect(service.latestState.value!.handState, 'MANO ABIERTA');
-      expect(service.latestState.value!.carMoving, isTrue);
+      expect(service.latestState.value!.carMoving, isFalse);
+      expect(service.latestState.value!.payload, 'S');
       expect(service.lastPreviewError, contains('preview timeout'));
 
       await service.disconnect();
@@ -57,6 +58,7 @@ void main() {
         expect(stopwatch.elapsedMilliseconds, lessThan(120));
         expect(service.latestState.value, isNotNull);
         expect(service.latestState.value!.handState, 'MANO ABIERTA');
+        expect(service.latestState.value!.payload, 'S');
 
         await Future<void>.delayed(const Duration(milliseconds: 40));
         expect(service.previewFetchInProgress, isTrue);
@@ -129,9 +131,9 @@ BackendSnapshotDto _buildSnapshot({
     handState: 'MANO ABIERTA',
     fingerCount: 5,
     fingersUp: 5,
-    command: 'forward',
-    payload: 'F',
-    carMoving: true,
+    command: 'stop',
+    payload: 'S',
+    carMoving: false,
     carX: 420,
     carY: 350,
     speed: 14,
@@ -144,6 +146,6 @@ BackendSnapshotDto _buildSnapshot({
     cameraPreviewHeight: 480,
     cameraPreviewVersion: previewVersion,
     handGestureType: HandGestureType.open,
-    vehicleMotionState: VehicleMotionState.moving,
+    vehicleMotionState: VehicleMotionState.stopped,
   );
 }

@@ -47,13 +47,23 @@ class CarCommandMapper {
       return CarCommand.stop;
     }
 
+    if (normalizedHandStatus.contains('cerrada') ||
+        normalizedHandStatus.contains('closed')) {
+      return fingerCount <= 0 ? CarCommand.forward : CarCommand.stop;
+    }
+
+    if (normalizedHandStatus.contains('abierta') ||
+        normalizedHandStatus.contains('open')) {
+      return CarCommand.stop;
+    }
+
     return switch (fingerCount) {
-      0 => CarCommand.stop,
+      0 => CarCommand.forward,
       1 => CarCommand.left,
       2 => CarCommand.right,
       3 => CarCommand.horn,
       4 => CarCommand.backward,
-      5 => CarCommand.forward,
+      5 => CarCommand.stop,
       _ => CarCommand.stop,
     };
   }
@@ -70,7 +80,7 @@ class CarCommandMapper {
     }
 
     if (normalized.contains('abierta') || normalized.contains('open')) {
-      return CarCommand.forward;
+      return CarCommand.stop;
     }
 
     if (normalized.startsWith('4') || normalized.contains('4 dedos')) {
@@ -90,7 +100,7 @@ class CarCommandMapper {
     }
 
     if (normalized.contains('cerrada') || normalized.contains('closed')) {
-      return CarCommand.stop;
+      return CarCommand.forward;
     }
 
     return CarCommand.stop;

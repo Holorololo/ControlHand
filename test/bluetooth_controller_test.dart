@@ -83,15 +83,15 @@ void main() {
           'open',
           handDetected: true,
           fingerCount: 5,
-          backendCommand: 'forward',
-          payload: 'F',
+          backendCommand: 'stop',
+          payload: 'S',
         );
         await controller.sendCommandFromHandStatus(
           'open',
           handDetected: true,
           fingerCount: 5,
-          backendCommand: 'forward',
-          payload: 'F',
+          backendCommand: 'stop',
+          payload: 'S',
         );
 
         expect(service.sendCallCount, 1);
@@ -100,13 +100,45 @@ void main() {
           'closed',
           handDetected: true,
           fingerCount: 0,
-          backendCommand: 'stop',
-          payload: 'S',
+          backendCommand: 'forward',
+          payload: 'F',
         );
 
         expect(service.sendCallCount, 2);
-        expect(controller.lastCommand.value, CarCommand.stop);
-        expect(controller.lastPayload.value, 'S');
+        expect(controller.lastCommand.value, CarCommand.forward);
+        expect(controller.lastPayload.value, 'F');
+      },
+    );
+
+    test(
+      'does not treat none and closed with 0 fingers as the same command',
+      () async {
+        final service = MockBluetoothCommandService();
+        final controller = BluetoothController(
+          bluetoothService: service,
+          enableStateSync: false,
+          startConnected: false,
+        );
+
+        await controller.connect();
+        await controller.sendCommandFromHandStatus(
+          'none',
+          handDetected: false,
+          fingerCount: 0,
+          backendCommand: 'stop',
+          payload: 'S',
+        );
+        await controller.sendCommandFromHandStatus(
+          'closed',
+          handDetected: true,
+          fingerCount: 0,
+          backendCommand: 'forward',
+          payload: 'F',
+        );
+
+        expect(service.sendCallCount, 2);
+        expect(controller.lastCommand.value, CarCommand.forward);
+        expect(controller.lastPayload.value, 'F');
       },
     );
 

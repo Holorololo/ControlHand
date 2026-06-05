@@ -53,18 +53,18 @@ class CarCommandPanel extends StatelessWidget {
             'Bluetooth y control',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            developerMode
-                ? 'Panel de pruebas para Bluetooth clasico, auto virtual y auto real con bocina.'
-                : 'Conecta tu HC-05/HC-06, revisa el ultimo payload y prueba direccion, avance, retroceso y bocina.',
+            'Conecta tu HC-05/HC-06 y prueba los controles manuales.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
-          const SizedBox(height: 16),
-          BuzzerStatusPanel(
-            viewModel: bluetoothStatusViewModel,
-            activeCommand: activeCommand,
-          ),
+          if (developerMode) ...<Widget>[
+            const SizedBox(height: 16),
+            BuzzerStatusPanel(
+              viewModel: bluetoothStatusViewModel,
+              activeCommand: activeCommand,
+            ),
+          ],
           const SizedBox(height: 16),
           BluetoothStatusPanel(
             viewModel: bluetoothStatusViewModel,
@@ -79,7 +79,9 @@ class CarCommandPanel extends StatelessWidget {
           ManualCarControlPanel(
             isConnected: bluetoothStatusViewModel.isConnected,
             activeCommand: activeCommand,
-            helperMessage: bluetoothStatusViewModel.manualBuzzerControlHint,
+            helperMessage: developerMode
+                ? bluetoothStatusViewModel.manualBuzzerControlHint
+                : '',
             onForward: onForward,
             onStop: onStop,
             onLeft: onLeft,

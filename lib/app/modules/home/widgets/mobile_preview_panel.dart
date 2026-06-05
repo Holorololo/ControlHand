@@ -49,6 +49,8 @@ class MobilePreviewPanel extends StatelessWidget {
                 message: cameraWaitingMessage,
                 icon: Icons.videocam_rounded,
               ),
+            // Light gradient at top for chip readability, clear center, subtle
+            // bottom vignette.
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -56,24 +58,60 @@ class MobilePreviewPanel extends StatelessWidget {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: <Color>[
-                      Colors.black.withValues(alpha: 0.18),
+                      Colors.black.withValues(alpha: 0.42),
                       Colors.transparent,
-                      Colors.black.withValues(alpha: 0.62),
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.18),
                     ],
-                    stops: const <double>[0, 0.45, 1],
+                    stops: const <double>[0, 0.18, 0.85, 1],
                   ),
                 ),
               ),
             ),
+            // Status chips positioned at the top.
             Positioned(
-              left: 14,
-              right: 14,
-              bottom: 14,
+              left: 10,
+              right: 10,
+              top: 10,
               child: RepaintBoundary(
                 child: HandStatusPanel(
                   viewModel: handStatusViewModel,
                   bluetoothStatusViewModel: bluetoothStatusViewModel,
                   compact: true,
+                ),
+              ),
+            ),
+            Positioned(
+              left: 18,
+              right: 18,
+              bottom: 18,
+              child: IgnorePointer(
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.34),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.08),
+                      ),
+                    ),
+                    child: const Text(
+                      'Pon la mano dentro del marco',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFFD5EFFF),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),

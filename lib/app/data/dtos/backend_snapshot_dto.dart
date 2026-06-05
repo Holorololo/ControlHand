@@ -44,8 +44,14 @@ class BackendSnapshotDto {
           fingerCount: fingerCount,
           handDetected: json['hand_detected'] == true,
         );
+    final handDetected = json['hand_detected'] == true;
     final command =
-        (json['command'] as String?) ?? _commandFromFingerCount(fingerCount);
+        (json['command'] as String?) ??
+        _commandFromDetection(
+          handStatus: handStatus,
+          fingerCount: fingerCount,
+          handDetected: handDetected,
+        );
     final payload =
         (json['payload'] as String?) ?? _payloadFromCommand(command) ?? 'S';
     final carMoving = json['car_moving'] == true;
@@ -57,7 +63,7 @@ class BackendSnapshotDto {
         milliseconds,
         isUtc: true,
       ).toLocal(),
-      handDetected: json['hand_detected'] == true,
+      handDetected: handDetected,
       handStatus: handStatus,
       handState: handState,
       fingerCount: fingerCount,
@@ -152,14 +158,26 @@ String _buildHandStateLabel({
   return '$fingerCount DEDOS';
 }
 
-String _commandFromFingerCount(int fingerCount) {
+String _commandFromDetection({
+  required String handStatus,
+  required int fingerCount,
+  required bool handDetected,
+}) {
+  if (!handDetected || handStatus == 'none') {
+    return 'stop';
+  }
+
+  if (handStatus == 'closed' && fingerCount <= 0) {
+    return 'forward';
+  }
+
   return switch (fingerCount) {
-    0 => 'stop',
+    0 => 'forward',
     1 => 'left',
     2 => 'right',
     3 => 'horn',
     4 => 'backward',
-    5 => 'forward',
+    5 => 'stop',
     _ => 'stop',
   };
 }

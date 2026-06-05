@@ -1,0 +1,316 @@
+diff --git a/lib/app/modules/home/widgets/car_command_panel.dart b/lib/app/modules/home/widgets/car_command_panel.dart
+index 661c2fe..1fb10b0 100644
+--- a/lib/app/modules/home/widgets/car_command_panel.dart
++++ b/lib/app/modules/home/widgets/car_command_panel.dart
+@@ -53,18 +53,18 @@ class CarCommandPanel extends StatelessWidget {
+             'Bluetooth y control',
+             style: Theme.of(context).textTheme.headlineSmall,
+           ),
+-          const SizedBox(height: 8),
++          const SizedBox(height: 6),
+           Text(
+-            developerMode
+-                ? 'Panel de pruebas para Bluetooth clasico, auto virtual y auto real con bocina.'
+-                : 'Conecta tu HC-05/HC-06, revisa el ultimo payload y prueba direccion, avance, retroceso y bocina.',
++            'Conecta tu HC-05/HC-06 y prueba los controles manuales.',
+             style: Theme.of(context).textTheme.bodyMedium,
+           ),
+-          const SizedBox(height: 16),
+-          BuzzerStatusPanel(
+-            viewModel: bluetoothStatusViewModel,
+-            activeCommand: activeCommand,
+-          ),
++          if (developerMode) ...<Widget>[
++            const SizedBox(height: 16),
++            BuzzerStatusPanel(
++              viewModel: bluetoothStatusViewModel,
++              activeCommand: activeCommand,
++            ),
++          ],
+           const SizedBox(height: 16),
+           BluetoothStatusPanel(
+             viewModel: bluetoothStatusViewModel,
+@@ -79,7 +79,10 @@ class CarCommandPanel extends StatelessWidget {
+           ManualCarControlPanel(
+             isConnected: bluetoothStatusViewModel.isConnected,
+             activeCommand: activeCommand,
+-            helperMessage: bluetoothStatusViewModel.manualBuzzerControlHint,
++            helperMessage:
++                developerMode
++                    ? bluetoothStatusViewModel.manualBuzzerControlHint
++                    : '',
+             onForward: onForward,
+             onStop: onStop,
+             onLeft: onLeft,
+diff --git a/lib/app/modules/home/widgets/hand_status_panel.dart b/lib/app/modules/home/widgets/hand_status_panel.dart
+index 29633a7..0bdcd6f 100644
+--- a/lib/app/modules/home/widgets/hand_status_panel.dart
++++ b/lib/app/modules/home/widgets/hand_status_panel.dart
+@@ -1,5 +1,6 @@
+ import 'package:flutter/material.dart';
+ 
++import '../../../config/performance_config.dart';
+ import '../../../theme/app_theme.dart';
+ import 'home_presentation_models.dart';
+ import 'home_widget_support.dart';
+@@ -89,62 +90,78 @@ class _CompactHandStatusPanel extends StatelessWidget {
+ 
+   @override
+   Widget build(BuildContext context) {
+-    final handTone = _handTone;
+-    final outputLabel = _outputLabel;
+-    final outputTone = _outputTone;
++    final fingerCount = viewModel.fingersValue;
++    final command = viewModel.commandValue;
++    final payload = _normalizedPayload;
++    final btConnected = bluetoothStatusViewModel?.isConnected ?? false;
++
++    final animDuration = Duration(
++      milliseconds: PerformanceConfig.enableOptimizedAnimations
++          ? PerformanceConfig.uiAnimationFastDurationMs
++          : 0,
++    );
+ 
+     return RepaintBoundary(
+-      child: GlassPanel(
+-        child: Wrap(
+-          spacing: 8,
+-          runSpacing: 8,
+-          children: <Widget>[
+-            StatusDotChip(label: viewModel.summary, tone: handTone),
+-            StatusDotChip(
+-              label: 'Dedos ${viewModel.fingersValue}',
+-              tone: HomeTone.soft,
+-            ),
+-            if (outputLabel != null)
+-              StatusDotChip(label: outputLabel, tone: outputTone),
+-          ],
++      child: Container(
++        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
++        decoration: BoxDecoration(
++          color: Colors.black.withValues(alpha: 0.52),
++          borderRadius: BorderRadius.circular(20),
++          border: Border.all(
++            color: AppTheme.stroke.withValues(alpha: 0.5),
++          ),
++        ),
++        child: AnimatedSwitcher(
++          duration: animDuration,
++          switchInCurve: Curves.easeOutCubic,
++          switchOutCurve: Curves.easeInCubic,
++          transitionBuilder: (child, animation) {
++            return FadeTransition(opacity: animation, child: child);
++          },
++          child: Wrap(
++            key: ValueKey<String>('$fingerCount|$command|$payload|$btConnected'),
++            spacing: 6,
++            runSpacing: 6,
++            alignment: WrapAlignment.center,
++            children: <Widget>[
++              _OverlayChip(
++                icon: Icons.fingerprint_rounded,
++                label: fingerCount,
++                tone: _fingerTone,
++              ),
++              _OverlayChip(
++                icon: _commandIcon,
++                label: command,
++                tone: HomeTone.soft,
++              ),
++              _OverlayChip(
++                icon: Icons.send_rounded,
++                label: payload.isNotEmpty ? payload : '-',
++                tone: HomeTone.soft,
++              ),
++              _BluetoothDot(connected: btConnected),
++            ],
++          ),
+         ),
+       ),
+     );
+   }
+ 
+-  HomeTone get _handTone {
+-    final normalized = viewModel.summary.trim().toLowerCase();
+-    if (normalized.contains('abierta') || normalized.contains('open')) {
+-      return HomeTone.good;
+-    }
+-    if (normalized.contains('cerrada') || normalized.contains('closed')) {
+-      return HomeTone.warn;
+-    }
++  HomeTone get _fingerTone {
++    final count = int.tryParse(viewModel.fingersValue) ?? 0;
++    if (count >= 5) return HomeTone.good;
++    if (count <= 0) return HomeTone.warn;
+     return HomeTone.soft;
+   }
+ 
+-  String? get _outputLabel {
+-    if (bluetoothStatusViewModel == null) {
+-      return null;
+-    }
+-    if (_normalizedPayload.isEmpty) {
+-      return viewModel.commandValue;
+-    }
+-    return '${viewModel.commandValue} / $_normalizedPayload';
+-  }
+-
+-  HomeTone get _outputTone {
+-    final bluetoothViewModel = bluetoothStatusViewModel;
+-    if (bluetoothViewModel == null) {
+-      return HomeTone.soft;
+-    }
+-    if (!bluetoothViewModel.isBuzzerOutputMode) {
+-      return bluetoothViewModel.outputModeTone;
+-    }
+-    return switch (_normalizedPayload) {
+-      'S' => HomeTone.alert,
+-      'H' => HomeTone.warn,
+-      _ => HomeTone.good,
++  IconData get _commandIcon {
++    return switch (viewModel.commandValue) {
++      'Adelante' => Icons.keyboard_double_arrow_up_rounded,
++      'Atrás' || 'Atras' => Icons.keyboard_double_arrow_down_rounded,
++      'Izquierda' => Icons.turn_left_rounded,
++      'Derecha' => Icons.turn_right_rounded,
++      'Bocina' => Icons.campaign_rounded,
++      _ => Icons.pause_circle_filled_rounded,
+     };
+   }
+ 
+@@ -157,6 +174,94 @@ class _CompactHandStatusPanel extends StatelessWidget {
+   }
+ }
+ 
++class _OverlayChip extends StatelessWidget {
++  const _OverlayChip({
++    required this.icon,
++    required this.label,
++    required this.tone,
++  });
++
++  final IconData icon;
++  final String label;
++  final HomeTone tone;
++
++  @override
++  Widget build(BuildContext context) {
++    final palette = toneColors(tone);
++
++    return Container(
++      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
++      decoration: BoxDecoration(
++        color: palette.background,
++        borderRadius: BorderRadius.circular(12),
++        border: Border.all(color: palette.border),
++      ),
++      child: Row(
++        mainAxisSize: MainAxisSize.min,
++        children: <Widget>[
++          Icon(icon, color: palette.foreground, size: 14),
++          const SizedBox(width: 5),
++          Text(
++            label,
++            style: TextStyle(
++              color: palette.text,
++              fontSize: 12,
++              fontWeight: FontWeight.w700,
++            ),
++          ),
++        ],
++      ),
++    );
++  }
++}
++
++class _BluetoothDot extends StatelessWidget {
++  const _BluetoothDot({required this.connected});
++
++  final bool connected;
++
++  @override
++  Widget build(BuildContext context) {
++    final color = connected ? AppTheme.success : AppTheme.danger;
++
++    return Container(
++      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
++      decoration: BoxDecoration(
++        color: color.withValues(alpha: 0.12),
++        borderRadius: BorderRadius.circular(12),
++        border: Border.all(color: color.withValues(alpha: 0.3)),
++      ),
++      child: Row(
++        mainAxisSize: MainAxisSize.min,
++        children: <Widget>[
++          Icon(
++            connected
++                ? Icons.bluetooth_connected_rounded
++                : Icons.bluetooth_disabled_rounded,
++            color: color,
++            size: 14,
++          ),
++          const SizedBox(width: 4),
++          Container(
++            width: 7,
++            height: 7,
++            decoration: BoxDecoration(
++              shape: BoxShape.circle,
++              color: color,
++              boxShadow: <BoxShadow>[
++                BoxShadow(
++                  color: color.withValues(alpha: 0.5),
++                  blurRadius: 6,
++                ),
++              ],
++            ),
++          ),
++        ],
++      ),
++    );
++  }
++}
++
+ class HandStatusMetricPanel extends StatelessWidget {
+   const HandStatusMetricPanel({required this.viewModel, super.key});
+ 
+diff --git a/lib/app/modules/home/widgets/mobile_preview_panel.dart b/lib/app/modules/home/widgets/mobile_preview_panel.dart
+index 6acfe81..d06733e 100644
+--- a/lib/app/modules/home/widgets/mobile_preview_panel.dart
++++ b/lib/app/modules/home/widgets/mobile_preview_panel.dart
+@@ -49,6 +49,8 @@ class MobilePreviewPanel extends StatelessWidget {
+                 message: cameraWaitingMessage,
+                 icon: Icons.videocam_rounded,
+               ),
++            // Light gradient at top for chip readability, clear center, subtle
++            // bottom vignette.
+             Positioned.fill(
+               child: DecoratedBox(
+                 decoration: BoxDecoration(
+@@ -56,19 +58,21 @@ class MobilePreviewPanel extends StatelessWidget {
+                     begin: Alignment.topCenter,
+                     end: Alignment.bottomCenter,
+                     colors: <Color>[
+-                      Colors.black.withValues(alpha: 0.18),
++                      Colors.black.withValues(alpha: 0.42),
++                      Colors.transparent,
+                       Colors.transparent,
+-                      Colors.black.withValues(alpha: 0.62),
++                      Colors.black.withValues(alpha: 0.18),
+                     ],
+-                    stops: const <double>[0, 0.45, 1],
++                    stops: const <double>[0, 0.18, 0.85, 1],
+                   ),
+                 ),
+               ),
+             ),
++            // Status chips positioned at the top.
+             Positioned(
+-              left: 14,
+-              right: 14,
+-              bottom: 14,
++              left: 10,
++              right: 10,
++              top: 10,
+               child: RepaintBoundary(
+                 child: HandStatusPanel(
+                   viewModel: handStatusViewModel,

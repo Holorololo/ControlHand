@@ -5,12 +5,12 @@ import 'package:movilcontrol/app/data/mappers/car_command_mapper.dart';
 
 void main() {
   group('CarCommandMapper', () {
-    test('maps 0 fingers to stop and payload S', () {
+    test('maps closed hand with 0 fingers to forward and payload F', () {
       final command = CarCommandMapper.fromFingerCount(0, handStatus: 'closed');
 
-      expect(command, CarCommand.stop);
-      expect(CarCommandMapper.toPayload(command), 'S');
-      expect(CarCommandMapper.toVisualText(command), 'Parar');
+      expect(command, CarCommand.forward);
+      expect(CarCommandMapper.toPayload(command), 'F');
+      expect(CarCommandMapper.toVisualText(command), 'Adelante');
     });
 
     test('maps 1 finger to left and payload L', () {
@@ -57,12 +57,12 @@ void main() {
       expect(CarCommandMapper.toVisualText(command), 'Atras');
     });
 
-    test('maps 5 fingers to forward and payload F', () {
+    test('maps 5 fingers to stop and payload S', () {
       final command = CarCommandMapper.fromFingerCount(5, handStatus: 'open');
 
-      expect(command, CarCommand.forward);
-      expect(CarCommandMapper.toPayload(command), 'F');
-      expect(CarCommandMapper.toVisualText(command), 'Adelante');
+      expect(command, CarCommand.stop);
+      expect(CarCommandMapper.toPayload(command), 'S');
+      expect(CarCommandMapper.toVisualText(command), 'Parar');
     });
 
     test('maps no hand to stop and payload S', () {
@@ -75,5 +75,25 @@ void main() {
       expect(command, CarCommand.stop);
       expect(CarCommandMapper.toPayload(command), 'S');
     });
+
+    test(
+      'treats none and closed as different states when finger count is 0',
+      () {
+        final noHand = CarCommandMapper.fromBackendState(
+          handDetected: false,
+          handStatus: 'none',
+          fingerCount: 0,
+        );
+        final closedHand = CarCommandMapper.fromBackendState(
+          handDetected: true,
+          handStatus: 'closed',
+          fingerCount: 0,
+        );
+
+        expect(noHand, CarCommand.stop);
+        expect(closedHand, CarCommand.forward);
+        expect(noHand, isNot(closedHand));
+      },
+    );
   });
 }

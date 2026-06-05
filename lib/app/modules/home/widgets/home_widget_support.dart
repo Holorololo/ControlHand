@@ -652,49 +652,145 @@ class TargetReticle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 180,
-        height: 180,
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: AppTheme.primary.withValues(alpha: 0.32),
-            width: 1.2,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final maxHeight = constraints.maxHeight;
+
+        // Keep the guide large on mobile while preserving some breathing room
+        // for the status chips above and the hint below.
+        final guideWidth = (maxWidth * 0.78)
+            .clamp(maxWidth * 0.7, maxWidth * 0.84)
+            .toDouble();
+        final guideHeight = (maxHeight * 0.62)
+            .clamp(maxHeight * 0.55, maxHeight * 0.68)
+            .toDouble();
+        final cornerLength = (guideWidth * 0.14).clamp(26.0, 58.0).toDouble();
+        final cornerThickness = maxWidth < 380 ? 2.2 : 2.8;
+        final borderRadius = BorderRadius.circular(maxWidth < 380 ? 28 : 34);
+
+        return Center(
+          child: RepaintBoundary(
+            child: Container(
+              width: guideWidth,
+              height: guideHeight,
+              decoration: BoxDecoration(
+                borderRadius: borderRadius,
+                border: Border.all(
+                  color: AppTheme.primarySoft.withValues(alpha: 0.22),
+                  width: 1.2,
+                ),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: AppTheme.primary.withValues(alpha: 0.12),
+                    blurRadius: 22,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: <Widget>[
+                  _TargetCorner(
+                    alignment: Alignment.topLeft,
+                    horizontal: cornerLength,
+                    vertical: cornerLength,
+                    thickness: cornerThickness,
+                    color: AppTheme.primarySoft.withValues(alpha: 0.92),
+                  ),
+                  _TargetCorner(
+                    alignment: Alignment.topRight,
+                    horizontal: cornerLength,
+                    vertical: cornerLength,
+                    thickness: cornerThickness,
+                    color: AppTheme.primarySoft.withValues(alpha: 0.92),
+                  ),
+                  _TargetCorner(
+                    alignment: Alignment.bottomLeft,
+                    horizontal: cornerLength,
+                    vertical: cornerLength,
+                    thickness: cornerThickness,
+                    color: AppTheme.primarySoft.withValues(alpha: 0.92),
+                  ),
+                  _TargetCorner(
+                    alignment: Alignment.bottomRight,
+                    horizontal: cornerLength,
+                    vertical: cornerLength,
+                    thickness: cornerThickness,
+                    color: AppTheme.primarySoft.withValues(alpha: 0.92),
+                  ),
+                ],
+              ),
+            ),
           ),
-          borderRadius: BorderRadius.circular(28),
-        ),
+        );
+      },
+    );
+  }
+}
+
+class _TargetCorner extends StatelessWidget {
+  const _TargetCorner({
+    required this.alignment,
+    required this.horizontal,
+    required this.vertical,
+    required this.thickness,
+    required this.color,
+  });
+
+  final Alignment alignment;
+  final double horizontal;
+  final double vertical;
+  final double thickness;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final isTop = alignment.y < 0;
+    final isLeft = alignment.x < 0;
+
+    return Align(
+      alignment: alignment,
+      child: SizedBox(
+        width: horizontal,
+        height: vertical,
         child: Stack(
           children: <Widget>[
-            Align(
-              alignment: Alignment.topCenter,
+            Positioned(
+              top: isTop ? 0 : null,
+              bottom: isTop ? null : 0,
+              left: 0,
+              right: 0,
               child: Container(
-                width: 48,
-                height: 2,
-                color: AppTheme.primary.withValues(alpha: 0.55),
+                height: thickness,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(999),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.38),
+                      blurRadius: 10,
+                    ),
+                  ],
+                ),
               ),
             ),
-            Align(
-              alignment: Alignment.bottomCenter,
+            Positioned(
+              top: 0,
+              bottom: 0,
+              left: isLeft ? 0 : null,
+              right: isLeft ? null : 0,
               child: Container(
-                width: 48,
-                height: 2,
-                color: AppTheme.primary.withValues(alpha: 0.55),
-              ),
-            ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                width: 2,
-                height: 48,
-                color: AppTheme.primary.withValues(alpha: 0.55),
-              ),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Container(
-                width: 2,
-                height: 48,
-                color: AppTheme.primary.withValues(alpha: 0.55),
+                width: thickness,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(999),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.38),
+                      blurRadius: 10,
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

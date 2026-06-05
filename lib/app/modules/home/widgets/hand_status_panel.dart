@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../config/performance_config.dart';
 import '../../../theme/app_theme.dart';
 import 'home_presentation_models.dart';
 import 'home_widget_support.dart';
@@ -89,62 +90,78 @@ class _CompactHandStatusPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final handTone = _handTone;
-    final outputLabel = _outputLabel;
-    final outputTone = _outputTone;
+    final fingerCount = viewModel.fingersValue;
+    final command = viewModel.commandValue;
+    final payload = _normalizedPayload;
+    final btConnected = bluetoothStatusViewModel?.isConnected ?? false;
+
+    final animDuration = Duration(
+      milliseconds: PerformanceConfig.enableOptimizedAnimations
+          ? PerformanceConfig.uiAnimationFastDurationMs
+          : 0,
+    );
 
     return RepaintBoundary(
-      child: GlassPanel(
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: <Widget>[
-            StatusDotChip(label: viewModel.summary, tone: handTone),
-            StatusDotChip(
-              label: 'Dedos ${viewModel.fingersValue}',
-              tone: HomeTone.soft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.52),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppTheme.stroke.withValues(alpha: 0.5)),
+        ),
+        child: AnimatedSwitcher(
+          duration: animDuration,
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          child: Wrap(
+            key: ValueKey<String>(
+              '$fingerCount|$command|$payload|$btConnected',
             ),
-            if (outputLabel != null)
-              StatusDotChip(label: outputLabel, tone: outputTone),
-          ],
+            spacing: 6,
+            runSpacing: 6,
+            alignment: WrapAlignment.center,
+            children: <Widget>[
+              _OverlayChip(
+                icon: Icons.fingerprint_rounded,
+                label: fingerCount,
+                tone: _fingerTone,
+              ),
+              _OverlayChip(
+                icon: _commandIcon,
+                label: command,
+                tone: HomeTone.soft,
+              ),
+              _OverlayChip(
+                icon: Icons.send_rounded,
+                label: payload.isNotEmpty ? payload : '-',
+                tone: HomeTone.soft,
+              ),
+              _BluetoothDot(connected: btConnected),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  HomeTone get _handTone {
-    final normalized = viewModel.summary.trim().toLowerCase();
-    if (normalized.contains('abierta') || normalized.contains('open')) {
-      return HomeTone.good;
-    }
-    if (normalized.contains('cerrada') || normalized.contains('closed')) {
-      return HomeTone.warn;
-    }
+  HomeTone get _fingerTone {
+    final count = int.tryParse(viewModel.fingersValue) ?? 0;
+    if (count >= 5) return HomeTone.good;
+    if (count <= 0) return HomeTone.warn;
     return HomeTone.soft;
   }
 
-  String? get _outputLabel {
-    if (bluetoothStatusViewModel == null) {
-      return null;
-    }
-    if (_normalizedPayload.isEmpty) {
-      return viewModel.commandValue;
-    }
-    return '${viewModel.commandValue} / $_normalizedPayload';
-  }
-
-  HomeTone get _outputTone {
-    final bluetoothViewModel = bluetoothStatusViewModel;
-    if (bluetoothViewModel == null) {
-      return HomeTone.soft;
-    }
-    if (!bluetoothViewModel.isBuzzerOutputMode) {
-      return bluetoothViewModel.outputModeTone;
-    }
-    return switch (_normalizedPayload) {
-      'S' => HomeTone.alert,
-      'H' => HomeTone.warn,
-      _ => HomeTone.good,
+  IconData get _commandIcon {
+    return switch (viewModel.commandValue) {
+      'Adelante' => Icons.keyboard_double_arrow_up_rounded,
+      'Atrás' || 'Atras' => Icons.keyboard_double_arrow_down_rounded,
+      'Izquierda' => Icons.turn_left_rounded,
+      'Derecha' => Icons.turn_right_rounded,
+      'Bocina' => Icons.campaign_rounded,
+      _ => Icons.pause_circle_filled_rounded,
     };
   }
 
@@ -154,6 +171,91 @@ class _CompactHandStatusPanel extends StatelessWidget {
       return '';
     }
     return payload;
+  }
+}
+
+class _OverlayChip extends StatelessWidget {
+  const _OverlayChip({
+    required this.icon,
+    required this.label,
+    required this.tone,
+  });
+
+  final IconData icon;
+  final String label;
+  final HomeTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = toneColors(tone);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: palette.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: palette.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, color: palette.foreground, size: 14),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: palette.text,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BluetoothDot extends StatelessWidget {
+  const _BluetoothDot({required this.connected});
+
+  final bool connected;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = connected ? AppTheme.success : AppTheme.danger;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(
+            connected
+                ? Icons.bluetooth_connected_rounded
+                : Icons.bluetooth_disabled_rounded,
+            color: color,
+            size: 14,
+          ),
+          const SizedBox(width: 4),
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color,
+              boxShadow: <BoxShadow>[
+                BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 6),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

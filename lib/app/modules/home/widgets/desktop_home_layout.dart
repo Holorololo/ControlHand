@@ -50,10 +50,21 @@ class DesktopHomeLayout extends StatelessWidget {
                                   children: <Widget>[
                                     _DesktopHero(controller: controller),
                                     const SizedBox(height: 24),
-                                    _ReactiveCarStatusPanel(
-                                      controller: controller,
+                                    Obx(
+                                      () =>
+                                          controller
+                                              .isDeveloperModeEnabled
+                                              .value
+                                          ? Column(
+                                              children: [
+                                                _ReactiveCarStatusPanel(
+                                                  controller: controller,
+                                                ),
+                                                const SizedBox(height: 24),
+                                              ],
+                                            )
+                                          : const SizedBox.shrink(),
                                     ),
-                                    const SizedBox(height: 24),
                                     _ControlCenterBody(
                                       controller: controller,
                                       hostTextController:
@@ -148,8 +159,6 @@ class _DesktopHero extends StatelessWidget {
             'La app conecta automaticamente con el backend, calcula dedos levantados y deja Bluetooth listo para enviar S, L, R, H, B y F al Arduino.',
             style: Theme.of(context).textTheme.bodyLarge,
           ),
-          const SizedBox(height: 20),
-          _ReactiveDesktopHeroChips(controller: controller),
         ],
       ),
     );
@@ -252,35 +261,6 @@ class _ControlCenterBody extends StatelessWidget {
       }
 
       return Column(children: children);
-    });
-  }
-}
-
-class _ReactiveDesktopHeroChips extends StatelessWidget {
-  const _ReactiveDesktopHeroChips({required this.controller});
-
-  final HomeController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final connectionViewModel = HomePresentationMapper.mapConnection(
-        controller: controller,
-      );
-      final packetLabel = controller.packetLabel;
-
-      return Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: <Widget>[
-          StatusDotChip(
-            label: controller.demoBackendStatusLabel,
-            tone: connectionViewModel.statusTone,
-          ),
-          SoftChip(label: controller.demoBackendStatusMessage),
-          SoftChip(label: 'Ultimo paquete $packetLabel'),
-        ],
-      );
     });
   }
 }

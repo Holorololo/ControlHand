@@ -54,98 +54,35 @@ class MobileHomeLayout extends StatelessWidget {
           children: <Widget>[
             const Positioned.fill(child: NeonBackdrop()),
             SafeArea(
-              child: Column(
-                children: <Widget>[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
-                    child: _MobileTopBar(
-                      controller: controller,
-                      onOpenPanel: () => _openControlCenter(context),
-                    ),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-                      child: _ReactiveMobilePreview(controller: controller),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-                    child: _MobileCommandDeck(
-                      controller: controller,
-                      onOpenPanel: () => _openControlCenter(context),
-                    ),
-                  ),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: _ReactiveMobilePreview(controller: controller),
               ),
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _MobileCommandDeck extends StatelessWidget {
-  const _MobileCommandDeck({
-    required this.controller,
-    required this.onOpenPanel,
-  });
-
-  final HomeController controller;
-  final VoidCallback onOpenPanel;
-
-  @override
-  Widget build(BuildContext context) {
-    return PanelShell(
-      padding: const EdgeInsets.all(18),
-      radius: 26,
-      child: Obx(() {
-        final bluetoothStatusViewModel =
-            HomePresentationMapper.mapBluetoothStatus(controller: controller);
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: <Widget>[
-                StatusDotChip(
-                  label: controller.demoBackendStatusLabel,
-                  tone: connectionTone(controller.connectionStatus.value),
-                ),
-                StatusDotChip(
-                  label: bluetoothStatusViewModel.connectionLabel,
-                  tone: bluetoothStatusViewModel.connectionTone,
-                ),
-                SoftChip(
-                  label: 'Payload ${bluetoothStatusViewModel.lastPayloadLabel}',
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              controller.demoBackendStatusMessage,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: onOpenPanel,
-                icon: const Icon(Icons.bluetooth_searching_rounded),
-                label: const Text(
-                  'Bluetooth y control',
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-          ],
-        );
-      }),
+      floatingActionButton: GestureDetector(
+        onLongPress: controller.canUseDeveloperMode
+            ? () {
+                controller.toggleDeveloperMode();
+                Get.snackbar(
+                  'Modo desarrollador',
+                  controller.isDeveloperModeEnabled.value
+                      ? 'Se activaron los paneles técnicos.'
+                      : 'Se ocultaron los paneles técnicos.',
+                  snackPosition: SnackPosition.BOTTOM,
+                  margin: const EdgeInsets.all(16),
+                );
+              }
+            : null,
+        child: FloatingActionButton(
+          onPressed: () => _openControlCenter(context),
+          backgroundColor: AppTheme.panelStrong,
+          foregroundColor: AppTheme.primarySoft,
+          child: const Icon(Icons.bluetooth_audio_rounded),
+        ),
+      ),
     );
   }
 }
@@ -341,22 +278,6 @@ class _ControlCenterBody extends StatelessWidget {
   }
 }
 
-class _ReactiveConnectionStatusChip extends StatelessWidget {
-  const _ReactiveConnectionStatusChip({required this.controller});
-
-  final HomeController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      return StatusDotChip(
-        label: controller.demoBackendStatusLabel,
-        tone: connectionTone(controller.connectionStatus.value),
-      );
-    });
-  }
-}
-
 class _ReactiveMobilePreview extends StatelessWidget {
   const _ReactiveMobilePreview({required this.controller});
 
@@ -379,75 +300,5 @@ class _ReactiveMobilePreview extends StatelessWidget {
         bluetoothStatusViewModel: bluetoothStatusViewModel,
       );
     });
-  }
-}
-
-class _MobileTopBar extends StatelessWidget {
-  const _MobileTopBar({required this.controller, required this.onOpenPanel});
-
-  final HomeController controller;
-  final VoidCallback onOpenPanel;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final stacked = constraints.maxWidth < 380;
-        final actionButton = IconButton.filledTonal(
-          onPressed: onOpenPanel,
-          onLongPress: controller.canUseDeveloperMode
-              ? () {
-                  controller.toggleDeveloperMode();
-                  Get.snackbar(
-                    'Modo desarrollador',
-                    controller.isDeveloperModeEnabled.value
-                        ? 'Se activaron los paneles tecnicos.'
-                        : 'Se ocultaron los paneles tecnicos.',
-                    snackPosition: SnackPosition.BOTTOM,
-                    margin: const EdgeInsets.all(16),
-                  );
-                }
-              : null,
-          style: IconButton.styleFrom(
-            backgroundColor: AppTheme.panelStrong,
-            foregroundColor: AppTheme.primarySoft,
-          ),
-          icon: const Icon(Icons.bluetooth_audio_rounded),
-        );
-
-        if (stacked) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              const BrandCluster(compact: false),
-              const SizedBox(height: 12),
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: _ReactiveConnectionStatusChip(
-                        controller: controller,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  actionButton,
-                ],
-              ),
-            ],
-          );
-        }
-
-        return Row(
-          children: <Widget>[
-            const Expanded(child: BrandCluster(compact: false)),
-            _ReactiveConnectionStatusChip(controller: controller),
-            const SizedBox(width: 10),
-            actionButton,
-          ],
-        );
-      },
-    );
   }
 }

@@ -169,9 +169,11 @@ class GestureAutoBackend:
 
         return dedos.count(1), dedos
 
-    def _command_for_finger_count(self, finger_count):
-        if finger_count <= 0:
+    def _command_for_detection(self, hand_status, finger_count, hand_detected):
+        if not hand_detected or hand_status == "none":
             return "stop", "S"
+        if hand_status == "closed" and finger_count <= 0:
+            return "forward", "F"
         if finger_count == 1:
             return "left", "L"
         if finger_count == 2:
@@ -180,7 +182,9 @@ class GestureAutoBackend:
             return "horn", "H"
         if finger_count == 4:
             return "backward", "B"
-        return "forward", "F"
+        if finger_count >= 5 or hand_status == "open":
+            return "stop", "S"
+        return "stop", "S"
 
     def _hand_status_for_finger_count(self, finger_count, hand_detected):
         if not hand_detected:
@@ -240,8 +244,12 @@ class GestureAutoBackend:
             hand_landmarks.landmark,
             handedness_label,
         )
-        command, payload = self._command_for_finger_count(fingers_up)
         hand_status, hand_state = self._hand_status_for_finger_count(
+            fingers_up,
+            hand_detected=True,
+        )
+        command, payload = self._command_for_detection(
+            hand_status,
             fingers_up,
             hand_detected=True,
         )
@@ -368,7 +376,7 @@ class GestureAutoBackend:
         )
         cv2.putText(
             scene,
-            "0=S  1=L  2=R  3=H  4=B  5=F",
+            "0=F  1=L  2=R  3=H  4=B  5=S",
             (30, 150),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.7,
