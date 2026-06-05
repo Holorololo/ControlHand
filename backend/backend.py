@@ -17,8 +17,10 @@ AUTO_START_X = 50
 AUTO_Y = 350
 AUTO_SPEED = 8
 PREVIEW_STREAM_WIDTH = 480
-PREVIEW_JPEG_QUALITY = 70
+PREVIEW_JPEG_QUALITY = 60
 PROCESSING_MAX_WIDTH = 640
+PREVIEW_ENCODE_INTERVAL_MS = 1000
+PREVIEW_REQUEST_WINDOW_MS = 2500
 DEFAULT_HTTP_PORT = 5000
 
 WINDOW_HAND = "Camara y Mano"
@@ -78,10 +80,11 @@ class GestureAutoBackend:
         auto_speed=AUTO_SPEED,
         min_detection_confidence=0.7,
         min_tracking_confidence=0.7,
-        stable_frames=3,
+        stable_frames=2,
         preview_stream_width=PREVIEW_STREAM_WIDTH,
         preview_jpeg_quality=PREVIEW_JPEG_QUALITY,
         processing_max_width=PROCESSING_MAX_WIDTH,
+        preview_encode_interval_ms=PREVIEW_ENCODE_INTERVAL_MS,
     ):
         self.camera_index = camera_index
         self.camera_width = camera_width
@@ -91,6 +94,7 @@ class GestureAutoBackend:
         self.preview_stream_width = max(0, preview_stream_width)
         self.preview_jpeg_quality = max(30, min(95, preview_jpeg_quality))
         self.processing_max_width = max(0, processing_max_width)
+        self.preview_encode_interval_ms = max(0, preview_encode_interval_ms)
 
         self.auto_x = AUTO_START_X
         self.auto_y = AUTO_Y
@@ -502,7 +506,7 @@ class GestureAutoBackend:
             interpolation=cv2.INTER_AREA,
         )
 
-    def process_frame(self, frame):
+    def process_frame(self, frame, render_auto_frame=False):
         frame = cv2.flip(frame, 1)
         frame = self.fit_frame_to_canvas(frame)
         frame = self.resize_for_processing(frame)
@@ -540,7 +544,7 @@ class GestureAutoBackend:
 
         hand_frame = self.dibujar_mano(frame, results)
         hand_frame = self.dibujar_panel_mano(hand_frame, state)
-        auto_frame = self.crear_escena_auto(state)
+        auto_frame = self.crear_escena_auto(state) if render_auto_frame else None
         return state, hand_frame, auto_frame
 
     def run(
@@ -564,7 +568,10 @@ class GestureAutoBackend:
                 if not ret:
                     raise RuntimeError("No se pudo leer la camara.")
 
-                state, hand_frame, auto_frame = self.process_frame(frame)
+                state, hand_frame, auto_frame = self.process_frame(
+                    frame,
+                    render_auto_frame=show_windows,
+                )
 
                 if frame_callback is not None:
                     frame_callback(state, hand_frame, auto_frame)
@@ -595,6 +602,10 @@ class GestureAutoRuntime:
         self._camera_preview_width = None
         self._camera_preview_height = None
         self._camera_preview_version = 0
+        self._last_preview_encoded_at = 0.0
+        self._last_preview_requested_at = 0.0
+        self._received_mobile_frames = 0
+        self._last_logged_payload = None
         self._ready = False
         self._message = "Esperando backend"
         self._last_error = ""
@@ -655,6 +666,7 @@ class GestureAutoRuntime:
 
     def camera_preview_jpeg(self):
         with self._state_lock:
+            self._last_preview_requested_at = time.time()
             if self._camera_preview_jpeg is None:
                 return None
             return bytes(self._camera_preview_jpeg)
@@ -669,19 +681,37 @@ class GestureAutoRuntime:
         if not frame_bytes:
             raise ValueError("No se recibieron bytes JPEG del celular.")
 
+        request_started = time.perf_counter()
+        decode_started = time.perf_counter()
         decoded = cv2.imdecode(
             np.frombuffer(frame_bytes, dtype=np.uint8),
             cv2.IMREAD_COLOR,
         )
+        decode_ms = int((time.perf_counter() - decode_started) * 1000)
         if decoded is None:
             raise ValueError("No se pudo decodificar la imagen enviada por el celular.")
 
-        state, hand_frame, auto_frame = self.backend.process_frame(decoded)
+        process_started = time.perf_counter()
+        state, hand_frame, auto_frame = self.backend.process_frame(
+            decoded,
+            render_auto_frame=self.show_windows,
+        )
+        process_ms = int((time.perf_counter() - process_started) * 1000)
+        handle_started = time.perf_counter()
         self._handle_frame(
             state,
             hand_frame,
             auto_frame,
             source_message="Camara del celular enviando frames al backend.",
+        )
+        handle_ms = int((time.perf_counter() - handle_started) * 1000)
+        total_ms = int((time.perf_counter() - request_started) * 1000)
+        self._log_mobile_frame(
+            state,
+            decode_ms=decode_ms,
+            process_ms=process_ms,
+            handle_ms=handle_ms,
+            total_ms=total_ms,
         )
 
         if self.show_windows:
@@ -724,7 +754,9 @@ class GestureAutoRuntime:
         _auto_frame,
         source_message="Camara y deteccion activas.",
     ):
-        preview_payload = self.backend.encode_preview_frame(hand_frame)
+        preview_payload = None
+        if self._should_encode_preview():
+            preview_payload = self.backend.encode_preview_frame(hand_frame)
 
         with self._state_lock:
             self._state = state
@@ -734,10 +766,60 @@ class GestureAutoRuntime:
                 self._camera_preview_width = preview_width
                 self._camera_preview_height = preview_height
                 self._camera_preview_version += 1
+                self._last_preview_encoded_at = time.time()
 
             self._ready = True
             self._message = source_message
             self._last_error = ""
+
+    def _should_encode_preview(self):
+        if self.backend.preview_stream_width <= 0:
+            return False
+
+        if self._camera_preview_jpeg is None:
+            return True
+
+        if not self._preview_recently_requested():
+            return False
+
+        interval_seconds = self.backend.preview_encode_interval_ms / 1000.0
+        if interval_seconds <= 0:
+            return True
+
+        return (time.time() - self._last_preview_encoded_at) >= interval_seconds
+
+    def _preview_recently_requested(self):
+        if self._last_preview_requested_at <= 0:
+            return False
+
+        return (time.time() - self._last_preview_requested_at) <= (
+            PREVIEW_REQUEST_WINDOW_MS / 1000.0
+        )
+
+    def _log_mobile_frame(self, state, decode_ms, process_ms, handle_ms, total_ms):
+        self._received_mobile_frames += 1
+        should_log = (
+            self._received_mobile_frames == 1
+            or self._received_mobile_frames % 12 == 0
+            or state.payload != self._last_logged_payload
+        )
+        if not should_log:
+            return
+
+        self._last_logged_payload = state.payload
+        print(
+            "[mobile-frame] "
+            f"count={self._received_mobile_frames} "
+            f"hand_status={state.hand_status} "
+            f"finger_count={state.finger_count} "
+            f"command={state.command} "
+            f"payload={state.payload} "
+            f"decode_ms={decode_ms} "
+            f"process_ms={process_ms} "
+            f"handle_ms={handle_ms} "
+            f"total_ms={total_ms}",
+            flush=True,
+        )
 
     def _set_runtime_state(self, ready, message, last_error):
         with self._state_lock:
@@ -887,19 +969,19 @@ def parse_args():
     parser.add_argument(
         "--preview-width",
         type=int,
-        default=480,
+        default=PREVIEW_STREAM_WIDTH,
         help="Ancho maximo del preview JPEG que se sirve a Flutter. Usa 0 para no reescalar.",
     )
     parser.add_argument(
         "--preview-quality",
         type=int,
-        default=70,
+        default=PREVIEW_JPEG_QUALITY,
         help="Calidad JPEG del preview servido a Flutter.",
     )
     parser.add_argument(
         "--stable-frames",
         type=int,
-        default=3,
+        default=2,
         help="Frames consecutivos requeridos antes de cambiar el estado de la mano.",
     )
     parser.add_argument(
@@ -907,6 +989,12 @@ def parse_args():
         type=int,
         default=PROCESSING_MAX_WIDTH,
         help="Ancho maximo usado para procesar la mano antes de MediaPipe. Usa 0 para no reescalar.",
+    )
+    parser.add_argument(
+        "--preview-interval-ms",
+        type=int,
+        default=PREVIEW_ENCODE_INTERVAL_MS,
+        help="Intervalo minimo entre previews JPEG para Flutter. Usa 0 para actualizar en cada frame.",
     )
     return parser.parse_args()
 
@@ -921,6 +1009,7 @@ def build_backend(args):
         preview_stream_width=args.preview_width,
         preview_jpeg_quality=args.preview_quality,
         processing_max_width=args.processing_width,
+        preview_encode_interval_ms=args.preview_interval_ms,
     )
 
 

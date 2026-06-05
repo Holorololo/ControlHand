@@ -77,9 +77,13 @@ try {
                 "--preview-width",
                 "480",
                 "--preview-quality",
-                "65",
+                "60",
                 "--processing-width",
-                "640"
+                "640",
+                "--stable-frames",
+                "2",
+                "--preview-interval-ms",
+                "1000"
             ) `
             -WorkingDirectory $projectRoot `
             -PassThru `

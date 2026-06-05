@@ -485,9 +485,11 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
       _setInfoMessageIfChanged(
         'Camara del celular activa. Backend procesando frames remotos.',
       );
+      _lastUploadMs = stopwatch.elapsedMilliseconds;
       _logFrameMetrics(stopwatch.elapsed);
     } on TimeoutException catch (error) {
       _failedFrameCount++;
+      _lastUploadMs = stopwatch.elapsedMilliseconds;
       _lastUploadError =
           error.message ?? 'El backend tardo demasiado en responder.';
       if (_streamRequested) {
@@ -499,6 +501,7 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
       _logUploadTimeout(stopwatch.elapsed, error);
     } catch (error) {
       _failedFrameCount++;
+      _lastUploadMs = stopwatch.elapsedMilliseconds;
       _lastUploadError = error.toString();
       if (_streamRequested) {
         _setStatusIfChanged(MobileCameraRelayStatus.streaming);
@@ -518,7 +521,6 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
         elapsed: stopwatch.elapsed,
         outcome: _streamRequested ? 'ready-next-frame' : 'relay-stopped',
       );
-      _lastUploadMs = stopwatch.elapsedMilliseconds;
       _uploadInProgress = false;
     }
   }

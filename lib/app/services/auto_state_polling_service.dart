@@ -51,8 +51,10 @@ class AutoStatePollingService extends GetxService {
   int _lastPollMs = 0;
   int _lastStateFetchMs = 0;
   int _lastPreviewFetchMs = 0;
+  int _stateLogCount = 0;
   DateTime? _lastSuccessfulPollAt;
   String _lastPreviewError = '';
+  String? _lastLoggedPayload;
 
   String _scheme = 'http';
   String _host = '127.0.0.1';
@@ -434,6 +436,30 @@ class AutoStatePollingService extends GetxService {
     debugPrint('AutoStatePollingService -> preview refresh failed: $error');
   }
 
+  void _logStateUpdate(AutoState state) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    _stateLogCount++;
+    final shouldLog =
+        _stateLogCount == 1 ||
+        _stateLogCount % PerformanceConfig.performanceLogSampleSize == 0 ||
+        state.payload != _lastLoggedPayload;
+    if (!shouldLog) {
+      return;
+    }
+
+    _lastLoggedPayload = state.payload;
+    debugPrint(
+      'AutoStatePollingService -> state '
+      'hand=${state.normalizedHandStatus} '
+      'fingers=${state.fingerCount} '
+      'command=${state.command} '
+      'payload=${state.payload}',
+    );
+  }
+
   String _normalizeBackendError(Object error) {
     var message = error.toString().trim();
     const prefixes = <String>['Exception:', 'Bad state:'];
@@ -482,6 +508,7 @@ class AutoStatePollingService extends GetxService {
 
     if (_hasMeaningfulStateChanged(latestState.value, state)) {
       latestState.value = state;
+      _logStateUpdate(state);
     }
     lastPacketAt.value = state.timestamp;
   }

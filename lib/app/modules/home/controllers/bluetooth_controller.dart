@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
 import '../../../data/enums/bluetooth_output_mode.dart';
@@ -277,6 +278,12 @@ class BluetoothController extends GetxController {
       _setRxIfChanged<String>(lastCommandLabel, commandLabel);
       _setRxIfChanged<String>(lastPayload, payload);
       _setRxIfChanged<String>(errorMessage, '');
+      if (kDebugMode) {
+        debugPrint(
+          'BluetoothController -> payload sent '
+          '(payload=$payload, command=$commandLabel)',
+        );
+      }
     } catch (error) {
       _setRxIfChanged<String>(
         errorMessage,
