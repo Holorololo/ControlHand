@@ -104,6 +104,10 @@ class FakeBackendProcessService extends BackendProcessService {
 class FakeMobileCameraRelayService extends MobileCameraRelayService {
   final Rx<MobileCameraRelayStatus> _status = MobileCameraRelayStatus.idle.obs;
   final RxString _infoMessage = ''.obs;
+  final RxBool _isSwitchingCamera = false.obs;
+  final RxBool _canSwitchCamera = false.obs;
+  final RxBool _isFrontCameraSelected = false.obs;
+  final RxString _cameraLensLabel = 'Camara trasera'.obs;
 
   bool supportedValue = false;
   bool hasPreviewValue = false;
@@ -115,12 +119,25 @@ class FakeMobileCameraRelayService extends MobileCameraRelayService {
   bool lastStopDisposeCamera = false;
   String? lastStartHost;
   int? lastStartPort;
+  int toggleCameraCallCount = 0;
 
   @override
   Rx<MobileCameraRelayStatus> get status => _status;
 
   @override
   RxString get infoMessage => _infoMessage;
+
+  @override
+  RxBool get isSwitchingCamera => _isSwitchingCamera;
+
+  @override
+  RxBool get canSwitchCamera => _canSwitchCamera;
+
+  @override
+  RxBool get isFrontCameraSelected => _isFrontCameraSelected;
+
+  @override
+  RxString get cameraLensLabel => _cameraLensLabel;
 
   @override
   bool get supported => supportedValue;
@@ -133,6 +150,17 @@ class FakeMobileCameraRelayService extends MobileCameraRelayService {
 
   @override
   CameraController? get controller => controllerValue;
+
+  void debugSetCameraSwitchAvailability({
+    required bool canSwitch,
+    required bool isFrontSelected,
+  }) {
+    _canSwitchCamera.value = canSwitch;
+    _isFrontCameraSelected.value = isFrontSelected;
+    _cameraLensLabel.value = isFrontSelected
+        ? 'Camara frontal'
+        : 'Camara trasera';
+  }
 
   @override
   Future<void> preparePreview() async {
@@ -156,6 +184,20 @@ class FakeMobileCameraRelayService extends MobileCameraRelayService {
     _status.value = supportedValue
         ? MobileCameraRelayStatus.ready
         : MobileCameraRelayStatus.unsupported;
+  }
+
+  @override
+  Future<void> toggleCamera() async {
+    toggleCameraCallCount++;
+    if (!_canSwitchCamera.value) {
+      return;
+    }
+    _isSwitchingCamera.value = true;
+    await Future<void>.delayed(Duration.zero);
+    final nextIsFront = !_isFrontCameraSelected.value;
+    _isFrontCameraSelected.value = nextIsFront;
+    _cameraLensLabel.value = nextIsFront ? 'Camara frontal' : 'Camara trasera';
+    _isSwitchingCamera.value = false;
   }
 }
 

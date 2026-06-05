@@ -23,14 +23,22 @@ enum MobileCameraRelayStatus {
 }
 
 class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
-  MobileCameraRelayService({Future<void> Function()? ensureCameraReadyHook})
-    : _ensureCameraReadyHook = ensureCameraReadyHook;
+  MobileCameraRelayService({
+    Future<void> Function()? ensureCameraReadyHook,
+    Future<List<CameraDescription>> Function()? availableCamerasHook,
+  }) : _ensureCameraReadyHook = ensureCameraReadyHook,
+       _availableCamerasHook = availableCamerasHook;
 
   final Rx<MobileCameraRelayStatus> status =
       MobileCameraRelayStatus.unsupported.obs;
   final RxString infoMessage = ''.obs;
   final Rxn<DateTime> lastFrameSentAt = Rxn<DateTime>();
   final Future<void> Function()? _ensureCameraReadyHook;
+  final Future<List<CameraDescription>> Function()? _availableCamerasHook;
+  final RxBool isSwitchingCamera = false.obs;
+  final RxBool canSwitchCamera = false.obs;
+  final RxBool isFrontCameraSelected = false.obs;
+  final RxString cameraLensLabel = 'Camara trasera'.obs;
 
   final Duration _frameInterval = const Duration(
     milliseconds: PerformanceConfig.frameSendIntervalMs,
@@ -38,6 +46,7 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
 
   CameraController? _controller;
   CameraDescription? _selectedCamera;
+  List<CameraDescription> _availableCameras = const <CameraDescription>[];
   http.Client? _client;
   BackendApiRepository? _backendApiRepository;
   String? _baseUrl;
@@ -62,6 +71,14 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
   bool get hasPreview =>
       _controller != null && _controller!.value.isInitialized;
   bool get isStreaming => status.value == MobileCameraRelayStatus.streaming;
+  bool get hasFrontCamera => _availableCameras.any(
+    (camera) => camera.lensDirection == CameraLensDirection.front,
+  );
+  bool get hasBackCamera => _availableCameras.any(
+    (camera) => camera.lensDirection == CameraLensDirection.back,
+  );
+  CameraLensDirection? get currentLensDirection =>
+      _selectedCamera?.lensDirection;
   int get framesCaptured => _framesCaptured;
   int get framesEncoded => _framesEncoded;
   int get framesSentOk => _uploadedFrameCount;
@@ -111,6 +128,24 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
     await _ensureCameraReady();
   }
 
+  Future<void> toggleCamera() async {
+    if (!supported || isSwitchingCamera.value) {
+      return;
+    }
+
+    final cameras = await _loadAvailableCameraList();
+    if (cameras.length < 2 || !canSwitchCamera.value) {
+      return;
+    }
+
+    final nextCamera = _pickAlternateCamera(cameras);
+    if (nextCamera == null) {
+      return;
+    }
+
+    await _switchToCamera(nextCamera);
+  }
+
   Future<void> startRelay({required String host, required int port}) async {
     if (!supported) {
       _setStatusIfChanged(MobileCameraRelayStatus.unsupported);
@@ -143,9 +178,7 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
       return;
     }
 
-    if (!cameraController.value.isStreamingImages) {
-      await cameraController.startImageStream(_handleCameraImage);
-    }
+    await _startImageStreamIfNeeded();
 
     _setStatusIfChanged(MobileCameraRelayStatus.streaming);
     _setInfoMessageIfChanged(
@@ -195,10 +228,25 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
 
     final ensureCameraReadyHook = _ensureCameraReadyHook;
     if (ensureCameraReadyHook != null) {
+      final cameras = await _loadAvailableCameraList();
+      if (cameras.isNotEmpty) {
+        final selectedCamera = _selectedCamera == null
+            ? _pickPreferredCamera(cameras)
+            : cameras.firstWhere(
+                (camera) => camera.name == _selectedCamera!.name,
+                orElse: () => _pickPreferredCamera(cameras),
+              );
+        _selectedCamera = selectedCamera;
+        _syncSelectedCameraState(selectedCamera);
+      }
       await ensureCameraReadyHook();
       _setStatusIfChanged(MobileCameraRelayStatus.ready);
       if (infoMessage.value.isEmpty) {
-        _setInfoMessageIfChanged('Camara del celular lista.');
+        _setInfoMessageIfChanged(
+          _selectedCamera == null
+              ? 'Camara del celular lista.'
+              : '${_cameraLensLabel(_selectedCamera!)} lista.',
+        );
       }
       return;
     }
@@ -207,14 +255,12 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
     _setInfoMessageIfChanged('Abriendo la camara del celular...');
 
     try {
-      final cameras = await availableCameras();
+      final cameras = await _loadAvailableCameraList();
       if (cameras.isEmpty) {
         _setStatusIfChanged(MobileCameraRelayStatus.failed);
         _setInfoMessageIfChanged('No se encontro una camara disponible.');
         return;
       }
-
-      await _disposeCameraController();
 
       final selectedCamera = _selectedCamera == null
           ? _pickPreferredCamera(cameras)
@@ -222,26 +268,9 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
               (camera) => camera.name == _selectedCamera!.name,
               orElse: () => _pickPreferredCamera(cameras),
             );
-      final controller = CameraController(
-        selectedCamera,
-        PerformanceConfig.mobileCameraResolutionPreset,
-        enableAudio: false,
-        imageFormatGroup: Platform.isIOS
-            ? ImageFormatGroup.bgra8888
-            : ImageFormatGroup.yuv420,
-      );
-
-      await controller.initialize();
-      try {
-        await controller.setFlashMode(FlashMode.off);
-      } catch (_) {
-        // Algunos dispositivos no permiten ajustar el flash en este modo.
-      }
-
-      _selectedCamera = selectedCamera;
-      _controller = controller;
+      await _initializeSelectedCamera(selectedCamera);
       _setStatusIfChanged(MobileCameraRelayStatus.ready);
-      _setInfoMessageIfChanged('Camara del celular lista.');
+      _setInfoMessageIfChanged('${_cameraLensLabel(selectedCamera)} lista.');
     } on CameraException catch (error) {
       if (error.code == 'CameraAccessDenied' ||
           error.code == 'CameraAccessDeniedWithoutPrompt' ||
@@ -269,8 +298,39 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
     );
   }
 
+  CameraDescription? _pickAlternateCamera(List<CameraDescription> cameras) {
+    if (cameras.length < 2) {
+      return null;
+    }
+
+    final selectedCamera = _selectedCamera;
+    if (selectedCamera == null) {
+      return _pickPreferredCamera(cameras);
+    }
+
+    final preferredLensDirection =
+        selectedCamera.lensDirection == CameraLensDirection.front
+        ? CameraLensDirection.back
+        : CameraLensDirection.front;
+
+    for (final camera in cameras) {
+      if (camera.lensDirection == preferredLensDirection &&
+          camera.name != selectedCamera.name) {
+        return camera;
+      }
+    }
+
+    for (final camera in cameras) {
+      if (camera.name != selectedCamera.name) {
+        return camera;
+      }
+    }
+
+    return null;
+  }
+
   void _handleCameraImage(CameraImage image) {
-    if (!_streamRequested || _baseUrl == null) {
+    if (!_streamRequested || _baseUrl == null || isSwitchingCamera.value) {
       return;
     }
 
@@ -650,6 +710,156 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
     return '$scheme://$normalizedHost:$normalizedPort';
   }
 
+  Future<List<CameraDescription>> _loadAvailableCameraList() async {
+    final availableCamerasHook = _availableCamerasHook;
+    final cameras = availableCamerasHook != null
+        ? await availableCamerasHook()
+        : await availableCameras();
+    _availableCameras = cameras;
+    _syncCameraInventoryState(cameras);
+    return cameras;
+  }
+
+  Future<void> _initializeSelectedCamera(CameraDescription camera) async {
+    final ensureCameraReadyHook = _ensureCameraReadyHook;
+    if (ensureCameraReadyHook != null) {
+      await ensureCameraReadyHook();
+      _selectedCamera = camera;
+      _syncSelectedCameraState(camera);
+      return;
+    }
+
+    await _disposeCameraController();
+
+    final controller = CameraController(
+      camera,
+      PerformanceConfig.mobileCameraResolutionPreset,
+      enableAudio: false,
+      imageFormatGroup: Platform.isIOS
+          ? ImageFormatGroup.bgra8888
+          : ImageFormatGroup.yuv420,
+    );
+
+    await controller.initialize();
+    try {
+      await controller.setFlashMode(FlashMode.off);
+    } catch (_) {
+      // Algunos dispositivos no permiten ajustar el flash en este modo.
+    }
+
+    _selectedCamera = camera;
+    _controller = controller;
+    _syncSelectedCameraState(camera);
+  }
+
+  Future<void> _switchToCamera(CameraDescription nextCamera) async {
+    if (isSwitchingCamera.value) {
+      return;
+    }
+
+    final previousCamera = _selectedCamera;
+    final wasStreaming = _streamRequested;
+    final previousStatus = status.value;
+    final previousInfoMessage = infoMessage.value;
+    final cameraLabel = _cameraLensLabel(nextCamera);
+
+    isSwitchingCamera.value = true;
+    _setInfoMessageIfChanged('Cambiando a $cameraLabel...');
+
+    try {
+      await _stopImageStreamIfNeeded();
+      _uploadInProgress = false;
+      lastFrameSentAt.value = null;
+      await _initializeSelectedCamera(nextCamera);
+
+      if (wasStreaming) {
+        _streamRequested = true;
+        await _startImageStreamIfNeeded();
+        _setStatusIfChanged(MobileCameraRelayStatus.streaming);
+        _setInfoMessageIfChanged(
+          '$cameraLabel activa. Backend procesando frames remotos.',
+        );
+      } else {
+        _setStatusIfChanged(MobileCameraRelayStatus.ready);
+        _setInfoMessageIfChanged('$cameraLabel lista.');
+      }
+    } catch (error) {
+      if (previousCamera != null && previousCamera.name != nextCamera.name) {
+        try {
+          await _initializeSelectedCamera(previousCamera);
+          if (wasStreaming) {
+            _streamRequested = true;
+            await _startImageStreamIfNeeded();
+          }
+          _setStatusIfChanged(
+            wasStreaming ? MobileCameraRelayStatus.streaming : previousStatus,
+          );
+          _setInfoMessageIfChanged(
+            previousInfoMessage.isEmpty
+                ? '${_cameraLensLabel(previousCamera)} restaurada.'
+                : previousInfoMessage,
+          );
+        } catch (_) {
+          _setStatusIfChanged(MobileCameraRelayStatus.failed);
+          _setInfoMessageIfChanged('No se pudo restaurar la camara anterior.');
+        }
+      } else {
+        _setStatusIfChanged(MobileCameraRelayStatus.failed);
+        _setInfoMessageIfChanged('No se pudo cambiar de camara.');
+      }
+
+      if (kDebugMode) {
+        debugPrint('MobileCameraRelayService -> camera switch failed: $error');
+      }
+    } finally {
+      isSwitchingCamera.value = false;
+    }
+  }
+
+  Future<void> _startImageStreamIfNeeded() async {
+    final cameraController = _controller;
+    if (cameraController == null || !cameraController.value.isInitialized) {
+      return;
+    }
+
+    if (!cameraController.value.isStreamingImages) {
+      await cameraController.startImageStream(_handleCameraImage);
+    }
+  }
+
+  Future<void> _stopImageStreamIfNeeded() async {
+    final cameraController = _controller;
+    if (cameraController != null && cameraController.value.isStreamingImages) {
+      await cameraController.stopImageStream();
+    }
+  }
+
+  void _syncCameraInventoryState(List<CameraDescription> cameras) {
+    final hasFront = cameras.any(
+      (camera) => camera.lensDirection == CameraLensDirection.front,
+    );
+    final hasBack = cameras.any(
+      (camera) => camera.lensDirection == CameraLensDirection.back,
+    );
+    canSwitchCamera.value = hasFront && hasBack;
+  }
+
+  void _syncSelectedCameraState(CameraDescription? camera) {
+    final isFrontFacing = camera?.lensDirection == CameraLensDirection.front;
+    isFrontCameraSelected.value = isFrontFacing;
+    cameraLensLabel.value = camera == null
+        ? 'Camara del celular'
+        : _cameraLensLabel(camera);
+  }
+
+  String _cameraLensLabel(CameraDescription camera) {
+    return switch (camera.lensDirection) {
+      CameraLensDirection.front => 'Camara frontal',
+      CameraLensDirection.back => 'Camara trasera',
+      CameraLensDirection.external => 'Camara externa',
+    };
+  }
+
   Future<void> _disposeCameraController() async {
     final cameraController = _controller;
     _controller = null;
@@ -713,9 +923,7 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
     final baseUrl = _baseUrl;
     final camera = _selectedCamera ?? cameraController?.description;
 
-    if (cameraController != null && cameraController.value.isStreamingImages) {
-      await cameraController.stopImageStream();
-    }
+    await _stopImageStreamIfNeeded();
 
     if (disposeCamera) {
       await _disposeCameraController();

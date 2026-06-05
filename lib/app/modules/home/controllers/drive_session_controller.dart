@@ -36,6 +36,13 @@ class DriveSessionController extends GetxController {
   Rx<MobileCameraRelayStatus> get mobileCameraStatus =>
       _mobileCameraRelayService.status;
   RxString get mobileCameraInfoMessage => _mobileCameraRelayService.infoMessage;
+  RxBool get isPhoneCameraSwitching =>
+      _mobileCameraRelayService.isSwitchingCamera;
+  RxBool get canSwitchPhoneCamera => _mobileCameraRelayService.canSwitchCamera;
+  RxBool get isFrontPhoneCameraSelected =>
+      _mobileCameraRelayService.isFrontCameraSelected;
+  RxString get phoneCameraLensLabel =>
+      _mobileCameraRelayService.cameraLensLabel;
 
   AutoState get effectiveState => latestState.value ?? AutoState.initial();
   bool get hasData => latestState.value != null;
@@ -75,6 +82,10 @@ class DriveSessionController extends GetxController {
   }
 
   String get phoneCameraStatusLabel {
+    if (isPhoneCameraSwitching.value) {
+      return 'Cambiando camara';
+    }
+
     switch (mobileCameraStatus.value) {
       case MobileCameraRelayStatus.unsupported:
         return 'Camara movil no disponible';
@@ -151,6 +162,10 @@ class DriveSessionController extends GetxController {
   }
 
   String get cameraSummary {
+    if (isPhoneCameraSwitching.value) {
+      return 'Cambiando entre camara frontal y trasera sin detener el backend.';
+    }
+
     if (showPhoneCameraPanel && !isRemotePreviewStreamingEnabled) {
       return 'Preview remoto en pausa para mantener fluida la camara del celular. '
           'El backend sigue enviando estado de mano y auto.';
@@ -194,6 +209,8 @@ class DriveSessionController extends GetxController {
       unawaited(_mobileCameraRelayService.preparePreview());
     }
   }
+
+  Future<void> togglePhoneCamera() => _mobileCameraRelayService.toggleCamera();
 
   Future<void> openDiagnosticsPanel() async {
     isDiagnosticsVisible.value = true;

@@ -298,6 +298,12 @@ class _ReactiveMobilePreview extends StatelessWidget {
         cameraWaitingMessage: controller.mobileCameraInfoMessage.value,
         handStatusViewModel: handStatusViewModel,
         bluetoothStatusViewModel: bluetoothStatusViewModel,
+        canSwitchCamera: controller.canSwitchPhoneCamera.value,
+        isSwitchingCamera: controller.isPhoneCameraSwitching.value,
+        cameraLensLabel: controller.phoneCameraLensLabel.value,
+        onToggleCamera: () {
+          controller.togglePhoneCamera();
+        },
       );
     });
   }

@@ -11,6 +11,10 @@ class MobilePreviewPanel extends StatelessWidget {
     required this.cameraWaitingMessage,
     required this.handStatusViewModel,
     required this.bluetoothStatusViewModel,
+    required this.canSwitchCamera,
+    required this.isSwitchingCamera,
+    required this.cameraLensLabel,
+    required this.onToggleCamera,
     super.key,
   });
 
@@ -18,6 +22,10 @@ class MobilePreviewPanel extends StatelessWidget {
   final String cameraWaitingMessage;
   final HandStatusViewModel handStatusViewModel;
   final BluetoothStatusViewModel bluetoothStatusViewModel;
+  final bool canSwitchCamera;
+  final bool isSwitchingCamera;
+  final String cameraLensLabel;
+  final VoidCallback onToggleCamera;
 
   @override
   Widget build(BuildContext context) {
@@ -115,8 +123,80 @@ class MobilePreviewPanel extends StatelessWidget {
                 ),
               ),
             ),
+            if (canSwitchCamera)
+              Positioned(
+                right: 16,
+                bottom: 62,
+                child: RepaintBoundary(
+                  child: _CameraSwitchButton(
+                    label: cameraLensLabel,
+                    isSwitchingCamera: isSwitchingCamera,
+                    onPressed: onToggleCamera,
+                  ),
+                ),
+              ),
             const Positioned.fill(child: IgnorePointer(child: TargetReticle())),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CameraSwitchButton extends StatelessWidget {
+  const _CameraSwitchButton({
+    required this.label,
+    required this.isSwitchingCamera,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool isSwitchingCamera;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final shortLabel = label.contains('frontal') ? 'Frontal' : 'Trasera';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: const Key('camera-switch-button'),
+        onTap: isSwitchingCamera ? null : onPressed,
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.42),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              if (isSwitchingCamera)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                const Icon(
+                  Icons.cameraswitch_rounded,
+                  size: 16,
+                  color: Color(0xFFD5EFFF),
+                ),
+              const SizedBox(width: 6),
+              Text(
+                shortLabel,
+                style: const TextStyle(
+                  color: Color(0xFFD5EFFF),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

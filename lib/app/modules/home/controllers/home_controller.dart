@@ -34,6 +34,14 @@ class HomeController extends GetxController {
       _driveSessionController.mobileCameraStatus;
   RxString get mobileCameraInfoMessage =>
       _driveSessionController.mobileCameraInfoMessage;
+  RxBool get isPhoneCameraSwitching =>
+      _driveSessionController.isPhoneCameraSwitching;
+  RxBool get canSwitchPhoneCamera =>
+      _driveSessionController.canSwitchPhoneCamera;
+  RxBool get isFrontPhoneCameraSelected =>
+      _driveSessionController.isFrontPhoneCameraSelected;
+  RxString get phoneCameraLensLabel =>
+      _driveSessionController.phoneCameraLensLabel;
   RxBool get isDiagnosticsVisible =>
       _driveSessionController.isDiagnosticsVisible;
   RxBool get isDeveloperModeEnabled =>
@@ -147,6 +155,9 @@ class HomeController extends GetxController {
   Future<void> sendBackward() => _bluetoothController.sendBackward();
 
   Future<void> sendHorn() => _bluetoothController.sendHorn();
+
+  Future<void> togglePhoneCamera() =>
+      _driveSessionController.togglePhoneCamera();
 
   void enableAutoVirtualBluetoothMode() =>
       _bluetoothController.enableAutoVirtualMode();
