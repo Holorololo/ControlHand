@@ -313,7 +313,12 @@ class _ReactiveCarStatusPanel extends StatelessWidget {
         controller: controller,
         state: state,
       );
-      return CarStatusPanel(viewModel: carStatusViewModel);
+      final bluetoothStatusViewModel =
+          HomePresentationMapper.mapBluetoothStatus(controller: controller);
+      return CarStatusPanel(
+        viewModel: carStatusViewModel,
+        bluetoothViewModel: bluetoothStatusViewModel,
+      );
     });
   }
 }

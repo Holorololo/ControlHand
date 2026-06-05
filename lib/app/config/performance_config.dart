@@ -22,4 +22,5 @@ class PerformanceConfig {
 
   static const int previewImageCacheWidth = 720;
   static const int performanceLogSampleSize = 12;
+  static const bool enableAnimatedCar = false;
 }

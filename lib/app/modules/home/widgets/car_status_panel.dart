@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../../../config/performance_config.dart';
 import 'home_presentation_models.dart';
 import 'home_widget_support.dart';
 
 class CarStatusPanel extends StatelessWidget {
-  const CarStatusPanel({required this.viewModel, super.key});
+  const CarStatusPanel({
+    required this.viewModel,
+    required this.bluetoothViewModel,
+    super.key,
+  });
 
   final CarStatusViewModel viewModel;
+  final BluetoothStatusViewModel bluetoothViewModel;
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +61,10 @@ class CarStatusPanel extends StatelessWidget {
             },
           ),
           const SizedBox(height: 16),
-          _TrackScene(viewModel: viewModel),
+          _TrackScene(
+            viewModel: viewModel,
+            bluetoothViewModel: bluetoothViewModel,
+          ),
           if (viewModel.errorMessage.isNotEmpty) ...<Widget>[
             const SizedBox(height: 14),
             AlertStrip(message: viewModel.errorMessage),
@@ -78,9 +87,13 @@ class CarStatusMetricPanel extends StatelessWidget {
 }
 
 class _TrackScene extends StatelessWidget {
-  const _TrackScene({required this.viewModel});
+  const _TrackScene({
+    required this.viewModel,
+    required this.bluetoothViewModel,
+  });
 
   final CarStatusViewModel viewModel;
+  final BluetoothStatusViewModel bluetoothViewModel;
 
   @override
   Widget build(BuildContext context) {
@@ -127,12 +140,263 @@ class _TrackScene extends StatelessWidget {
             },
           ),
           const SizedBox(height: 18),
-          const RoadStrip(),
-          const SizedBox(height: 16),
-          Align(
-            alignment: Alignment(-1 + (viewModel.carProgress * 2), 0),
-            child: CyberCar(moving: viewModel.isMoving),
+          RepaintBoundary(
+            child: PerformanceConfig.enableAnimatedCar
+                ? _AnimatedTrackScene(viewModel: viewModel)
+                : _StaticCommandStatus(
+                    viewModel: viewModel,
+                    bluetoothViewModel: bluetoothViewModel,
+                  ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AnimatedTrackScene extends StatelessWidget {
+  const _AnimatedTrackScene({required this.viewModel});
+
+  final CarStatusViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        const RoadStrip(),
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment(-1 + (viewModel.carProgress * 2), 0),
+          child: CyberCar(moving: viewModel.isMoving),
+        ),
+      ],
+    );
+  }
+}
+
+class _StaticCommandStatus extends StatelessWidget {
+  const _StaticCommandStatus({
+    required this.viewModel,
+    required this.bluetoothViewModel,
+  });
+
+  final CarStatusViewModel viewModel;
+  final BluetoothStatusViewModel bluetoothViewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = _statusTone;
+    final palette = toneColors(tone);
+    final statusIcon = _statusIcon;
+    final headline = _headline;
+    final helperText = _helperText;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 420;
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: palette.background,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: palette.border),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: palette.foreground.withValues(alpha: 0.12),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: compact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    _StatusHeadline(
+                      palette: palette,
+                      icon: statusIcon,
+                      headline: headline,
+                      helperText: helperText,
+                    ),
+                    const SizedBox(height: 14),
+                    _StatusMetaChips(
+                      viewModel: viewModel,
+                      bluetoothViewModel: bluetoothViewModel,
+                    ),
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Expanded(
+                      child: _StatusHeadline(
+                        palette: palette,
+                        icon: statusIcon,
+                        headline: headline,
+                        helperText: helperText,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _StatusMetaChips(
+                        viewModel: viewModel,
+                        bluetoothViewModel: bluetoothViewModel,
+                      ),
+                    ),
+                  ],
+                ),
+        );
+      },
+    );
+  }
+
+  HomeTone get _statusTone {
+    if (!bluetoothViewModel.isConnected) {
+      return HomeTone.alert;
+    }
+    if (bluetoothViewModel.isBuzzerOutputMode) {
+      return _normalizedPayload == '1' ? HomeTone.good : HomeTone.alert;
+    }
+    return viewModel.isMoving ? HomeTone.good : HomeTone.soft;
+  }
+
+  IconData get _statusIcon {
+    if (!bluetoothViewModel.isConnected) {
+      return Icons.bluetooth_disabled_rounded;
+    }
+    if (bluetoothViewModel.isBuzzerOutputMode) {
+      return _normalizedPayload == '1'
+          ? Icons.volume_up_rounded
+          : Icons.volume_off_rounded;
+    }
+    return viewModel.isMoving
+        ? Icons.play_circle_fill_rounded
+        : Icons.pause_circle_filled_rounded;
+  }
+
+  String get _headline {
+    if (!bluetoothViewModel.isConnected) {
+      return 'SIN ENLACE';
+    }
+    if (bluetoothViewModel.isBuzzerOutputMode) {
+      return _normalizedPayload == '1' ? 'BUZZER ON' : 'BUZZER OFF';
+    }
+    return viewModel.isMoving ? 'COMANDO ACTIVO' : 'AUTO EN ESPERA';
+  }
+
+  String get _helperText {
+    if (!bluetoothViewModel.isConnected) {
+      return 'Conecta Bluetooth para enviar comandos al Arduino o al auto virtual.';
+    }
+    if (bluetoothViewModel.isBuzzerOutputMode) {
+      return _normalizedPayload == '1'
+          ? 'Payload 1 enviado. El buzzer debe quedar encendido.'
+          : 'Payload 0 listo. El buzzer debe permanecer apagado.';
+    }
+    final payloadText = bluetoothViewModel.lastPayloadLabel;
+    return 'Ultimo comando ${bluetoothViewModel.lastCommandLabel} con payload $payloadText.';
+  }
+
+  String get _normalizedPayload {
+    final payload = bluetoothViewModel.lastPayloadLabel;
+    return payload == 'Sin payload' ? '' : payload;
+  }
+}
+
+class _StatusHeadline extends StatelessWidget {
+  const _StatusHeadline({
+    required this.palette,
+    required this.icon,
+    required this.headline,
+    required this.helperText,
+  });
+
+  final HomeTonePalette palette;
+  final IconData icon;
+  final String headline;
+  final String helperText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Container(
+          width: 54,
+          height: 54,
+          decoration: BoxDecoration(
+            color: palette.foreground.withValues(alpha: 0.16),
+            shape: BoxShape.circle,
+            border: Border.all(color: palette.border),
+          ),
+          child: Icon(icon, color: palette.foreground, size: 28),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                headline,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: palette.text,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.4,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                helperText,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFFD3E7F7),
+                  fontSize: 13,
+                  height: 1.45,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatusMetaChips extends StatelessWidget {
+  const _StatusMetaChips({
+    required this.viewModel,
+    required this.bluetoothViewModel,
+  });
+
+  final CarStatusViewModel viewModel;
+  final BluetoothStatusViewModel bluetoothViewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: <Widget>[
+          StatusDotChip(
+            label: bluetoothViewModel.connectionLabel,
+            tone: bluetoothViewModel.connectionTone,
+          ),
+          StatusDotChip(
+            label: bluetoothViewModel.outputModeLabel,
+            tone: bluetoothViewModel.outputModeTone,
+          ),
+          SoftChip(label: bluetoothViewModel.lastCommandLabel),
+          SoftChip(label: 'Payload ${bluetoothViewModel.lastPayloadLabel}'),
+          SoftChip(label: viewModel.movementLabel),
         ],
       ),
     );

@@ -281,7 +281,12 @@ class _ControlCenterBody extends StatelessWidget {
             controller: controller,
             state: state,
           );
-          return CarStatusPanel(viewModel: carStatusViewModel);
+          final bluetoothStatusViewModel =
+              HomePresentationMapper.mapBluetoothStatus(controller: controller);
+          return CarStatusPanel(
+            viewModel: carStatusViewModel,
+            bluetoothViewModel: bluetoothStatusViewModel,
+          );
         }),
         const SizedBox(height: 18),
         Obx(() {
