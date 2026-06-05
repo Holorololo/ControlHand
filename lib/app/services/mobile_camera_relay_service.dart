@@ -23,10 +23,14 @@ enum MobileCameraRelayStatus {
 }
 
 class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
+  MobileCameraRelayService({Future<void> Function()? ensureCameraReadyHook})
+    : _ensureCameraReadyHook = ensureCameraReadyHook;
+
   final Rx<MobileCameraRelayStatus> status =
       MobileCameraRelayStatus.unsupported.obs;
   final RxString infoMessage = ''.obs;
   final Rxn<DateTime> lastFrameSentAt = Rxn<DateTime>();
+  final Future<void> Function()? _ensureCameraReadyHook;
 
   final Duration _frameInterval = const Duration(
     milliseconds: PerformanceConfig.frameSendIntervalMs,
@@ -38,12 +42,19 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
   BackendApiRepository? _backendApiRepository;
   String? _baseUrl;
   bool _streamRequested = false;
+  bool _resumeRelayAfterLifecycle = false;
   bool _uploadInProgress = false;
+  int _framesCaptured = 0;
+  int _framesEncoded = 0;
   int _uploadedFrameCount = 0;
   int _failedFrameCount = 0;
   int _droppedBusyFrameCount = 0;
   int _intervalSkippedFrameCount = 0;
   int _uploadAttemptCount = 0;
+  int _lastEncodeMs = 0;
+  int _lastUploadMs = 0;
+  String _lastUploadError = '';
+  String _lastLifecycleEvent = 'none';
 
   bool get supported => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
@@ -51,6 +62,29 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
   bool get hasPreview =>
       _controller != null && _controller!.value.isInitialized;
   bool get isStreaming => status.value == MobileCameraRelayStatus.streaming;
+  int get framesCaptured => _framesCaptured;
+  int get framesEncoded => _framesEncoded;
+  int get framesSentOk => _uploadedFrameCount;
+  int get framesDroppedBusy => _droppedBusyFrameCount;
+  int get framesSkippedInterval => _intervalSkippedFrameCount;
+  int get lastEncodeMs => _lastEncodeMs;
+  int get lastUploadMs => _lastUploadMs;
+  String get lastUploadError => _lastUploadError;
+  MobileCameraRelayStatus get relayStatus => status.value;
+  String get lastLifecycleEvent => _lastLifecycleEvent;
+  String get metricsSummary => [
+    'camera_relay:',
+    '  status: ${relayStatus.name}',
+    '  lifecycle: $lastLifecycleEvent',
+    '  captured: $framesCaptured',
+    '  encoded: $framesEncoded',
+    '  sent_ok: $framesSentOk',
+    '  dropped_busy: $framesDroppedBusy',
+    '  skipped_interval: $framesSkippedInterval',
+    '  last_encode_ms: $lastEncodeMs',
+    '  last_upload_ms: $lastUploadMs',
+    '  last_upload_error: ${lastUploadError.isEmpty ? 'none' : lastUploadError}',
+  ].join('\n');
 
   @override
   void onInit() {
@@ -95,6 +129,11 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
     _droppedBusyFrameCount = 0;
     _intervalSkippedFrameCount = 0;
     _uploadAttemptCount = 0;
+    _framesCaptured = 0;
+    _framesEncoded = 0;
+    _lastEncodeMs = 0;
+    _lastUploadMs = 0;
+    _lastUploadError = '';
     lastFrameSentAt.value = null;
 
     await _ensureCameraReady();
@@ -150,6 +189,16 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
     if (hasPreview) {
       if (status.value == MobileCameraRelayStatus.initializing) {
         status.value = MobileCameraRelayStatus.ready;
+      }
+      return;
+    }
+
+    final ensureCameraReadyHook = _ensureCameraReadyHook;
+    if (ensureCameraReadyHook != null) {
+      await ensureCameraReadyHook();
+      _setStatusIfChanged(MobileCameraRelayStatus.ready);
+      if (infoMessage.value.isEmpty) {
+        _setInfoMessageIfChanged('Camara del celular lista.');
       }
       return;
     }
@@ -225,6 +274,8 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
       return;
     }
 
+    _framesCaptured++;
+
     if (_uploadInProgress) {
       _droppedBusyFrameCount++;
       _logDroppedBusyFrame();
@@ -239,11 +290,14 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
       return;
     }
 
+    final encodeStopwatch = Stopwatch()..start();
     final jpegBytes = _encodeCameraImage(image);
+    _lastEncodeMs = encodeStopwatch.elapsedMilliseconds;
     if (jpegBytes == null || jpegBytes.isEmpty) {
       return;
     }
 
+    _framesEncoded++;
     _uploadInProgress = true;
     lastFrameSentAt.value = DateTime.now();
     unawaited(_uploadFrame(jpegBytes));
@@ -426,6 +480,7 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
 
       await backendApiRepository.sendFrame(jpegBytes);
       _uploadedFrameCount++;
+      _lastUploadError = '';
       _setStatusIfChanged(MobileCameraRelayStatus.streaming);
       _setInfoMessageIfChanged(
         'Camara del celular activa. Backend procesando frames remotos.',
@@ -433,6 +488,8 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
       _logFrameMetrics(stopwatch.elapsed);
     } on TimeoutException catch (error) {
       _failedFrameCount++;
+      _lastUploadError =
+          error.message ?? 'El backend tardo demasiado en responder.';
       if (_streamRequested) {
         _setStatusIfChanged(MobileCameraRelayStatus.streaming);
         _setInfoMessageIfChanged(
@@ -442,6 +499,7 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
       _logUploadTimeout(stopwatch.elapsed, error);
     } catch (error) {
       _failedFrameCount++;
+      _lastUploadError = error.toString();
       if (_streamRequested) {
         _setStatusIfChanged(MobileCameraRelayStatus.streaming);
         _setInfoMessageIfChanged(
@@ -460,6 +518,7 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
         elapsed: stopwatch.elapsed,
         outcome: _streamRequested ? 'ready-next-frame' : 'relay-stopped',
       );
+      _lastUploadMs = stopwatch.elapsedMilliseconds;
       _uploadInProgress = false;
     }
   }
@@ -599,31 +658,76 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _lastLifecycleEvent = state.name;
+    _logLifecycleEvent(state.name);
+
     final cameraController = _controller;
-    if (cameraController == null || !cameraController.value.isInitialized) {
+    final hasInitializedController =
+        cameraController != null && cameraController.value.isInitialized;
+
+    if (state == AppLifecycleState.inactive) {
+      if (!hasInitializedController) {
+        return;
+      }
+      unawaited(
+        _pauseForLifecycle(
+          disposeCamera: false,
+          infoMessage: 'Camara del celular en pausa temporal.',
+        ),
+      );
       return;
     }
 
-    if (state == AppLifecycleState.inactive) {
-      final shouldResumeStream = _streamRequested;
-      final baseUrl = _baseUrl;
-      final camera = _selectedCamera ?? cameraController.description;
-
-      unawaited(_disposeCameraController());
-      if (supported) {
-        _setStatusIfChanged(MobileCameraRelayStatus.idle);
-        _setInfoMessageIfChanged('Camara del celular en pausa.');
+    if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused) {
+      if (!hasInitializedController && _selectedCamera == null) {
+        return;
       }
+      unawaited(
+        _pauseForLifecycle(
+          disposeCamera: hasInitializedController,
+          infoMessage: 'Camara del celular en pausa.',
+        ),
+      );
+      return;
+    }
 
-      _selectedCamera = camera;
-      _baseUrl = baseUrl;
-      _streamRequested = shouldResumeStream;
-    } else if (state == AppLifecycleState.resumed) {
-      if (_selectedCamera == null) {
+    if (state == AppLifecycleState.resumed) {
+      if (_selectedCamera == null &&
+          !_resumeRelayAfterLifecycle &&
+          !_streamRequested) {
         return;
       }
       unawaited(_resumeAfterLifecycle());
     }
+  }
+
+  Future<void> _pauseForLifecycle({
+    required bool disposeCamera,
+    required String infoMessage,
+  }) async {
+    final cameraController = _controller;
+    final shouldResumeStream = _streamRequested;
+    final baseUrl = _baseUrl;
+    final camera = _selectedCamera ?? cameraController?.description;
+
+    if (cameraController != null && cameraController.value.isStreamingImages) {
+      await cameraController.stopImageStream();
+    }
+
+    if (disposeCamera) {
+      await _disposeCameraController();
+      _setStatusIfChanged(MobileCameraRelayStatus.idle);
+    } else {
+      _setStatusIfChanged(MobileCameraRelayStatus.ready);
+    }
+
+    _uploadInProgress = false;
+    _selectedCamera = camera;
+    _baseUrl = baseUrl;
+    _streamRequested = shouldResumeStream;
+    _resumeRelayAfterLifecycle = shouldResumeStream;
+    _setInfoMessageIfChanged(infoMessage);
   }
 
   Future<void> _resumeAfterLifecycle() async {
@@ -632,7 +736,24 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
     if (_streamRequested && _baseUrl != null) {
       final uri = Uri.parse(_baseUrl!);
       await startRelay(host: _baseUrl!, port: uri.port);
+      _resumeRelayAfterLifecycle = false;
+      _logLifecycleEvent('relay restarted');
+      return;
     }
+
+    _resumeRelayAfterLifecycle = false;
+  }
+
+  @visibleForTesting
+  void debugSeedLifecycleState({
+    CameraDescription? selectedCamera,
+    required bool streamRequested,
+    String? baseUrl,
+  }) {
+    _selectedCamera = selectedCamera;
+    _streamRequested = streamRequested;
+    _baseUrl = baseUrl;
+    _resumeRelayAfterLifecycle = streamRequested;
   }
 
   @override
@@ -657,5 +778,13 @@ class MobileCameraRelayService extends GetxService with WidgetsBindingObserver {
     }
 
     infoMessage.value = nextMessage;
+  }
+
+  void _logLifecycleEvent(String event) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    debugPrint('MobileCameraRelayService -> lifecycle $event');
   }
 }

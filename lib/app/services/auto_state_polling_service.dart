@@ -1,20 +1,33 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/performance_config.dart';
+import '../data/dtos/backend_snapshot_dto.dart';
 import '../data/models/auto_state.dart';
 import '../data/repositories/backend_api_repository.dart';
 
 enum SocketConnectionStatus { disconnected, connecting, connected }
 
 class AutoStatePollingService extends GetxService {
+  AutoStatePollingService({
+    http.Client Function()? clientFactory,
+    BackendApiRepository Function(http.Client client, String baseUrl)?
+    repositoryFactory,
+  }) : _clientFactory = clientFactory,
+       _repositoryFactory = repositoryFactory;
+
   final Rx<SocketConnectionStatus> status =
       SocketConnectionStatus.disconnected.obs;
   final Rxn<AutoState> latestState = Rxn<AutoState>();
   final RxString errorMessage = ''.obs;
   final Rxn<DateTime> lastPacketAt = Rxn<DateTime>();
+
+  final http.Client Function()? _clientFactory;
+  final BackendApiRepository Function(http.Client client, String baseUrl)?
+  _repositoryFactory;
 
   http.Client? _client;
   BackendApiRepository? _backendApiRepository;
@@ -23,6 +36,7 @@ class AutoStatePollingService extends GetxService {
   bool _manualDisconnect = false;
   bool _connectInProgress = false;
   bool _pollInProgress = false;
+  bool _previewFetchInProgress = false;
   bool _disposed = false;
   bool _previewStreamingEnabled = true;
   Uint8List? _lastPreviewBytes;
@@ -34,6 +48,11 @@ class AutoStatePollingService extends GetxService {
   int _consecutiveFailureCount = 0;
   int _successfulPollCount = 0;
   int _failedPollCount = 0;
+  int _lastPollMs = 0;
+  int _lastStateFetchMs = 0;
+  int _lastPreviewFetchMs = 0;
+  DateTime? _lastSuccessfulPollAt;
+  String _lastPreviewError = '';
 
   String _scheme = 'http';
   String _host = '127.0.0.1';
@@ -43,6 +62,27 @@ class AutoStatePollingService extends GetxService {
   int get port => _port;
   String get baseUrl => '$_scheme://$_host:$_port';
   bool get previewStreamingEnabled => _previewStreamingEnabled;
+  int get lastPollMs => _lastPollMs;
+  int get lastStateFetchMs => _lastStateFetchMs;
+  int get lastPreviewFetchMs => _lastPreviewFetchMs;
+  DateTime? get lastSuccessfulPollAt => _lastSuccessfulPollAt;
+  int get consecutiveFailureCount => _consecutiveFailureCount;
+  bool get pollInProgress => _pollInProgress;
+  bool get previewFetchInProgress => _previewFetchInProgress;
+  String get lastPreviewError => _lastPreviewError;
+  String get metricsSummary => [
+    'backend_polling:',
+    '  status: ${status.value.name}',
+    '  preview_streaming: $previewStreamingEnabled',
+    '  poll_in_progress: $pollInProgress',
+    '  preview_fetch_in_progress: $previewFetchInProgress',
+    '  consecutive_failures: $consecutiveFailureCount',
+    '  last_poll_ms: $lastPollMs',
+    '  last_state_fetch_ms: $lastStateFetchMs',
+    '  last_preview_fetch_ms: $lastPreviewFetchMs',
+    '  last_successful_poll_at: ${_formatDateTime(lastSuccessfulPollAt)}',
+    '  last_preview_error: ${lastPreviewError.isEmpty ? 'none' : lastPreviewError}',
+  ].join('\n');
   Duration get _pollInterval => _previewStreamingEnabled
       ? const Duration(milliseconds: PerformanceConfig.pollingIntervalMs)
       : const Duration(
@@ -61,6 +101,10 @@ class AutoStatePollingService extends GetxService {
     _port = endpoint.port;
     _manualDisconnect = false;
     _setRxIfChanged<String>(errorMessage, '');
+    _lastPreviewError = '';
+    _lastPollMs = 0;
+    _lastStateFetchMs = 0;
+    _lastPreviewFetchMs = 0;
 
     try {
       await _closeConnection();
@@ -68,11 +112,10 @@ class AutoStatePollingService extends GetxService {
         status,
         SocketConnectionStatus.connecting,
       );
-      _client = http.Client();
-      _backendApiRepository = BackendApiRepository(
-        client: _client!,
-        baseUrl: baseUrl,
-      );
+      _client = (_clientFactory ?? http.Client.new)();
+      _backendApiRepository =
+          _repositoryFactory?.call(_client!, baseUrl) ??
+          BackendApiRepository(client: _client!, baseUrl: baseUrl);
 
       await _backendApiRepository!.getHealth();
 
@@ -110,42 +153,29 @@ class AutoStatePollingService extends GetxService {
     final stopwatch = Stopwatch()..start();
 
     try {
+      final stateStopwatch = Stopwatch()..start();
       final snapshot = await _backendApiRepository!.getState();
-      final previewVersion = snapshot.cameraPreviewVersion;
-      final previewAvailable = snapshot.cameraPreviewAvailable;
-      if (_previewStreamingEnabled) {
-        _lastPreviewWidth = snapshot.cameraPreviewWidth;
-        _lastPreviewHeight = snapshot.cameraPreviewHeight;
-
-        if (previewAvailable && _shouldRefreshPreview(previewVersion)) {
-          await _refreshPreview(previewVersion);
-        } else if (!previewAvailable) {
-          _clearPreviewCache();
-        }
-      } else {
-        _clearPreviewCache();
-      }
-
-      final state = AutoState.fromSnapshotDto(
-        snapshot,
-        previewBytes: _lastPreviewBytes,
-        previewVersion: _lastPreviewVersion,
-        previewWidth: _lastPreviewWidth,
-        previewHeight: _lastPreviewHeight,
-      );
+      _lastStateFetchMs = stateStopwatch.elapsedMilliseconds;
+      _publishSnapshotState(snapshot);
 
       _consecutiveFailureCount = 0;
       _successfulPollCount++;
-      if (_hasMeaningfulStateChanged(latestState.value, state)) {
-        latestState.value = state;
-      }
-      lastPacketAt.value = state.timestamp;
+      _lastSuccessfulPollAt = DateTime.now();
       _setRxIfChanged<String>(errorMessage, '');
       _setRxIfChanged<SocketConnectionStatus>(
         status,
         SocketConnectionStatus.connected,
       );
+      _lastPollMs = stopwatch.elapsedMilliseconds;
       _maybeLogPollingMetrics(stopwatch.elapsed);
+
+      final previewVersion = snapshot.cameraPreviewVersion;
+      final previewAvailable = snapshot.cameraPreviewAvailable;
+      if (_previewStreamingEnabled &&
+          previewAvailable &&
+          _shouldRefreshPreview(previewVersion)) {
+        unawaited(_refreshPreview(previewVersion));
+      }
     } catch (error) {
       _handlePollingFailure(error);
     } finally {
@@ -155,6 +185,10 @@ class AutoStatePollingService extends GetxService {
 
   bool _shouldRefreshPreview(int? previewVersion) {
     if (!_previewStreamingEnabled) {
+      return false;
+    }
+
+    if (_previewFetchInProgress) {
       return false;
     }
 
@@ -178,26 +212,37 @@ class AutoStatePollingService extends GetxService {
   }
 
   Future<void> _refreshPreview(int? previewVersion) async {
-    if (_backendApiRepository == null) {
+    if (_backendApiRepository == null || _previewFetchInProgress) {
       return;
     }
 
+    _previewFetchInProgress = true;
     _lastPreviewRefreshAt = DateTime.now();
+    final stopwatch = Stopwatch()..start();
     try {
       final previewBytes = await _backendApiRepository!.getPreview(
         version: previewVersion,
       );
+      _lastPreviewFetchMs = stopwatch.elapsedMilliseconds;
 
       if (previewBytes != null && previewBytes.isNotEmpty) {
         _lastPreviewBytes = previewBytes;
         _lastPreviewVersion = previewVersion;
         _previewRefreshCount++;
+        _lastPreviewError = '';
+        _publishPreviewRefresh();
         _logPreviewRefresh(previewVersion);
       }
     } on TimeoutException catch (error) {
+      _lastPreviewFetchMs = stopwatch.elapsedMilliseconds;
+      _lastPreviewError = error.message ?? 'Timeout al descargar preview.';
       _logPreviewTimeout(error);
     } catch (error) {
+      _lastPreviewFetchMs = stopwatch.elapsedMilliseconds;
+      _lastPreviewError = error.toString();
       _logPreviewFailure(error);
+    } finally {
+      _previewFetchInProgress = false;
     }
   }
 
@@ -299,6 +344,7 @@ class AutoStatePollingService extends GetxService {
     _client = null;
     _backendApiRepository = null;
     _pollInProgress = false;
+    _previewFetchInProgress = false;
   }
 
   void _clearPreviewCache() {
@@ -408,6 +454,59 @@ class AutoStatePollingService extends GetxService {
     }
 
     rx.value = value;
+  }
+
+  void _publishSnapshotState(BackendSnapshotDto snapshot) {
+    if (_previewStreamingEnabled) {
+      _lastPreviewWidth = snapshot.cameraPreviewWidth;
+      _lastPreviewHeight = snapshot.cameraPreviewHeight;
+      if (!snapshot.cameraPreviewAvailable) {
+        _clearPreviewCache();
+      }
+    } else {
+      _clearPreviewCache();
+    }
+
+    final hasCachedPreview =
+        _lastPreviewBytes != null && _lastPreviewBytes!.isNotEmpty;
+    final state = AutoState.fromSnapshotDto(
+      snapshot,
+      previewBytes: _lastPreviewBytes,
+      previewVersion: hasCachedPreview ? _lastPreviewVersion : null,
+      previewWidth: hasCachedPreview ? _lastPreviewWidth : null,
+      previewHeight: hasCachedPreview ? _lastPreviewHeight : null,
+    );
+
+    if (_hasMeaningfulStateChanged(latestState.value, state)) {
+      latestState.value = state;
+    }
+    lastPacketAt.value = state.timestamp;
+  }
+
+  void _publishPreviewRefresh() {
+    final currentState = latestState.value;
+    if (currentState == null) {
+      return;
+    }
+
+    final refreshedState = currentState.copyWith(
+      previewBytes: _lastPreviewBytes,
+      previewVersion: _lastPreviewVersion,
+      cameraFrameWidth: _lastPreviewWidth,
+      cameraFrameHeight: _lastPreviewHeight,
+    );
+
+    if (_hasMeaningfulStateChanged(currentState, refreshedState)) {
+      latestState.value = refreshedState;
+    }
+  }
+
+  String _formatDateTime(DateTime? value) {
+    if (value == null) {
+      return 'n/a';
+    }
+
+    return value.toIso8601String();
   }
 
   _Endpoint _normalizeEndpoint({String? host, int? port}) {

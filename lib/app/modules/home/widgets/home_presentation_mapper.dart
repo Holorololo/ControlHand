@@ -138,6 +138,7 @@ class HomePresentationMapper {
       recentLog: controller.backendRecentLog.value,
       infoMessage: controller.backendInfoMessage.value,
       statePreview: controller.statePreview,
+      observabilitySummary: controller.observabilitySummary,
     );
   }
 
@@ -247,6 +248,7 @@ class HomePresentationMapper {
       recentLog: _input.backendRecentLog,
       infoMessage: _input.backendInfoMessage,
       statePreview: _input.statePreview,
+      observabilitySummary: '',
     );
   }
 

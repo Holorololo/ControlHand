@@ -5,6 +5,8 @@ class PerformanceConfig {
 
   static const int backendRequestTimeoutMs = 4000;
   static const int frameUploadTimeoutMs = 3500;
+  static const int bluetoothConnectTimeoutMs = 2500;
+  static const int bluetoothSendTimeoutMs = 1200;
   static const int pollingIntervalMs = 500;
   static const int backgroundPollingIntervalMs = 850;
   static const int previewRefreshIntervalMs = 700;

@@ -33,6 +33,12 @@ abstract class BluetoothCommandService {
 
   String get lastCommand;
 
+  Duration? get lastConnectDuration;
+
+  Duration? get lastSendDuration;
+
+  DateTime? get permissionRequestedAt;
+
   String? get connectedDeviceAddress;
 
   String? get connectedDeviceName;

@@ -103,6 +103,7 @@ class BackendStatusViewModel {
     required this.command,
     required this.recentLogMessage,
     required this.statePreview,
+    required this.observabilitySummary,
   });
 
   factory BackendStatusViewModel({
@@ -110,6 +111,7 @@ class BackendStatusViewModel {
     required String recentLog,
     required String infoMessage,
     required String statePreview,
+    required String observabilitySummary,
   }) {
     return BackendStatusViewModel._(
       command: command,
@@ -119,12 +121,14 @@ class BackendStatusViewModel {
                 : infoMessage)
           : recentLog,
       statePreview: statePreview,
+      observabilitySummary: observabilitySummary,
     );
   }
 
   final String command;
   final String recentLogMessage;
   final String statePreview;
+  final String observabilitySummary;
 }
 
 class HandStatusViewModel {

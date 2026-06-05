@@ -8,6 +8,9 @@ class MockBluetoothCommandService extends GetxService
   bool _isConnected = false;
   String _lastCommand = '';
   String _lastError = '';
+  Duration? _lastConnectDuration;
+  Duration? _lastSendDuration;
+  DateTime? _permissionRequestedAt;
   String? _connectedDeviceAddress;
   String? _connectedDeviceName;
   List<BluetoothDeviceInfo> pairedDevices = const <BluetoothDeviceInfo>[
@@ -32,6 +35,15 @@ class MockBluetoothCommandService extends GetxService
   String get lastCommand => _lastCommand;
 
   @override
+  Duration? get lastConnectDuration => _lastConnectDuration;
+
+  @override
+  Duration? get lastSendDuration => _lastSendDuration;
+
+  @override
+  DateTime? get permissionRequestedAt => _permissionRequestedAt;
+
+  @override
   String? get connectedDeviceAddress => _connectedDeviceAddress;
 
   @override
@@ -40,6 +52,8 @@ class MockBluetoothCommandService extends GetxService
   @override
   Future<void> connect({String? address}) async {
     connectCallCount++;
+    _permissionRequestedAt = DateTime.now();
+    _lastConnectDuration = Duration.zero;
     _isConnected = true;
     _lastError = '';
     lastConnectAddress = address;
@@ -71,6 +85,7 @@ class MockBluetoothCommandService extends GetxService
     }
 
     sendCallCount++;
+    _lastSendDuration = Duration.zero;
     _lastCommand = payload;
     debugPrint('MockBluetoothCommandService -> $payload');
   }

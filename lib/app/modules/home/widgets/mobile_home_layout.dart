@@ -19,9 +19,9 @@ class MobileHomeLayout extends StatelessWidget {
   final HomeController controller;
 
   Future<void> _openControlCenter(BuildContext context) async {
-    await controller.openDiagnosticsPanel();
+    await controller.openControlCenter();
     if (!context.mounted) {
-      controller.closeDiagnosticsPanel();
+      controller.closeControlCenter();
       return;
     }
 
@@ -33,7 +33,7 @@ class MobileHomeLayout extends StatelessWidget {
         builder: (context) => _ControlCenterSheet(controller: controller),
       );
     } finally {
-      controller.closeDiagnosticsPanel();
+      controller.closeControlCenter();
     }
   }
 

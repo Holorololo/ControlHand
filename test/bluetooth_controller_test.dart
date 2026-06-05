@@ -330,6 +330,40 @@ void main() {
         controller.onClose();
       },
     );
+
+    test(
+      'sendCommand failure does not break backend hand-state flow',
+      () async {
+        final service = _SlowFailingBluetoothService();
+        final polling = FakeAutoStatePollingService();
+        final controller = BluetoothController(
+          bluetoothService: service,
+          pollingService: polling,
+          startConnected: false,
+          enableStateSync: true,
+        );
+
+        controller.onInit();
+        await controller.connect();
+
+        polling.latestState.value = _buildState(
+          handDetected: true,
+          handState: 'MANO ABIERTA',
+          fingersUp: 5,
+          carMoving: true,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+
+        expect(controller.isManualBuzzerControlEnabled.value, isTrue);
+        expect(
+          controller.errorMessage.value,
+          contains('Simulated send failure'),
+        );
+        expect(polling.latestState.value!.handState, 'MANO ABIERTA');
+        expect(polling.latestState.value!.carMoving, isTrue);
+        controller.onClose();
+      },
+    );
   });
 }
 
@@ -355,4 +389,63 @@ AutoState _buildState({
     cameraFrameWidth: null,
     cameraFrameHeight: null,
   );
+}
+
+class _SlowFailingBluetoothService implements BluetoothCommandService {
+  bool _isConnected = false;
+  String _lastError = '';
+  String _lastCommand = '';
+
+  @override
+  String? get connectedDeviceAddress => 'AA:BB:CC:DD:EE:FF';
+
+  @override
+  String? get connectedDeviceName => 'HC-05 Test';
+
+  @override
+  bool get isConnected => _isConnected;
+
+  @override
+  bool get isSupported => true;
+
+  @override
+  String get lastCommand => _lastCommand;
+
+  @override
+  Duration? get lastConnectDuration => const Duration(milliseconds: 20);
+
+  @override
+  String get lastError => _lastError;
+
+  @override
+  Duration? get lastSendDuration => const Duration(milliseconds: 25);
+
+  @override
+  DateTime? get permissionRequestedAt => null;
+
+  @override
+  Future<void> connect({String? address}) async {
+    _isConnected = true;
+    _lastError = '';
+  }
+
+  @override
+  Future<void> disconnect() async {
+    _isConnected = false;
+  }
+
+  @override
+  Future<List<BluetoothDeviceInfo>> getPairedDevices() async {
+    return const <BluetoothDeviceInfo>[
+      BluetoothDeviceInfo(name: 'HC-05 Test', address: 'AA:BB:CC:DD:EE:FF'),
+    ];
+  }
+
+  @override
+  Future<void> sendCommand(String payload) async {
+    await Future<void>.delayed(const Duration(milliseconds: 25));
+    _lastCommand = payload;
+    _lastError = 'Simulated send failure';
+    throw const BluetoothCommandException('Simulated send failure');
+  }
 }

@@ -141,6 +141,34 @@ void main() {
       },
     );
 
+    test(
+      'opening control center in mobile mode does not enable remote preview automatically',
+      () async {
+        final services = _registerServices();
+        services.mobile.supportedValue = true;
+        Get.put<ConnectionController>(
+          TestConnectionController(
+            autoConnect: false,
+            isMobileClientOverride: true,
+          ),
+        );
+        final controller = TestDriveSessionController(
+          isMobileClientOverride: true,
+        );
+
+        controller.prepareSessionExperience();
+        expect(services.polling.previewStreamingToggles, <bool>[false]);
+
+        await controller.openControlCenter();
+        expect(controller.isDiagnosticsVisible.value, isTrue);
+        expect(services.polling.previewStreamingToggles, <bool>[false]);
+
+        controller.closeControlCenter();
+        expect(controller.isDiagnosticsVisible.value, isFalse);
+        expect(services.polling.previewStreamingToggles, <bool>[false]);
+      },
+    );
+
     test('builds packet label, state preview and connected camera summary', () {
       final services = _registerServices();
       final connectionController = TestConnectionController(autoConnect: false);

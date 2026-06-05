@@ -34,6 +34,14 @@ class BackendStatusPanel extends StatelessWidget {
           SurfaceTile(title: 'Log reciente', body: viewModel.recentLogMessage),
           const SizedBox(height: 14),
           DiagnosticPanel(statePreview: viewModel.statePreview),
+          if (viewModel.observabilitySummary.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 14),
+            SurfaceTile(
+              title: 'Observabilidad',
+              body: viewModel.observabilitySummary,
+              monospace: true,
+            ),
+          ],
         ],
       ),
     );

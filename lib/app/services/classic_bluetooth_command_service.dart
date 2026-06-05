@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:bluetooth_serial_android/bluetooth_serial_android.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import '../config/bluetooth_runtime_config.dart';
+import '../config/performance_config.dart';
 import 'bluetooth_command_service.dart';
 
 class ClassicBluetoothCommandService extends GetxService
@@ -15,6 +17,9 @@ class ClassicBluetoothCommandService extends GetxService
   bool _isConnected = false;
   String _lastCommand = '';
   String _lastError = '';
+  Duration? _lastConnectDuration;
+  Duration? _lastSendDuration;
+  DateTime? _permissionRequestedAt;
   String? _connectedDeviceAddress;
   String? _connectedDeviceName;
 
@@ -31,6 +36,15 @@ class ClassicBluetoothCommandService extends GetxService
   String get lastError => _lastError;
 
   @override
+  Duration? get lastConnectDuration => _lastConnectDuration;
+
+  @override
+  Duration? get lastSendDuration => _lastSendDuration;
+
+  @override
+  DateTime? get permissionRequestedAt => _permissionRequestedAt;
+
+  @override
   String? get connectedDeviceAddress => _connectedDeviceAddress;
 
   @override
@@ -44,10 +58,11 @@ class ClassicBluetoothCommandService extends GetxService
       throw UnsupportedError(_lastError);
     }
 
+    final stopwatch = Stopwatch()..start();
     try {
       await _requestBluetoothPermissions();
 
-      final pairedDevices = await getPairedDevices();
+      final pairedDevices = await _loadPairedDevices(requestPermissions: false);
       final targetDevice = _resolveTargetDevice(
         address: address,
         pairedDevices: pairedDevices,
@@ -59,11 +74,19 @@ class ClassicBluetoothCommandService extends GetxService
         throw BluetoothCommandException(_lastError);
       }
 
-      final connected = await FlutterBluetoothSerial.connect(
-        targetDevice.address,
-        uuid: _defaultSppUuid,
-        timeoutMs: 400,
-      );
+      final connected =
+          await FlutterBluetoothSerial.connect(
+            targetDevice.address,
+            uuid: _defaultSppUuid,
+            timeoutMs: 400,
+          ).timeout(
+            const Duration(
+              milliseconds: PerformanceConfig.bluetoothConnectTimeoutMs,
+            ),
+            onTimeout: () => throw TimeoutException(
+              'La conexion Bluetooth tardo demasiado.',
+            ),
+          );
 
       if (!connected) {
         _lastError =
@@ -73,12 +96,18 @@ class ClassicBluetoothCommandService extends GetxService
 
       _isConnected = true;
       _lastError = '';
+      _lastConnectDuration = stopwatch.elapsed;
       _connectedDeviceAddress = targetDevice.address;
       _connectedDeviceName = targetDevice.name;
+      _logBluetoothConnect(targetDevice.address, stopwatch.elapsed);
     } on PlatformException catch (error) {
       _isConnected = false;
       _lastError =
           error.message ?? 'Fallo de plataforma al conectar Bluetooth clasico.';
+      throw BluetoothCommandException(_lastError);
+    } on TimeoutException catch (error) {
+      _isConnected = false;
+      _lastError = error.message ?? 'La conexion Bluetooth tardo demasiado.';
       throw BluetoothCommandException(_lastError);
     } catch (error) {
       _isConnected = false;
@@ -122,53 +151,30 @@ class ClassicBluetoothCommandService extends GetxService
       throw BluetoothCommandException(_lastError);
     }
 
+    final stopwatch = Stopwatch()..start();
     try {
-      await FlutterBluetoothSerial.write(payload);
+      await FlutterBluetoothSerial.write(payload).timeout(
+        const Duration(milliseconds: PerformanceConfig.bluetoothSendTimeoutMs),
+        onTimeout: () =>
+            throw TimeoutException('El envio Bluetooth tardo demasiado.'),
+      );
       _lastError = '';
       _lastCommand = payload;
-      if (kDebugMode) {
-        debugPrint('ClassicBluetoothCommandService -> $payload');
-      }
+      _lastSendDuration = stopwatch.elapsed;
+      _logBluetoothSend(payload, stopwatch.elapsed);
     } on PlatformException catch (error) {
       _lastError =
           error.message ?? 'Error de plataforma al enviar datos por Bluetooth.';
+      throw BluetoothCommandException(_lastError);
+    } on TimeoutException catch (error) {
+      _lastError = error.message ?? 'El envio Bluetooth tardo demasiado.';
       throw BluetoothCommandException(_lastError);
     }
   }
 
   @override
   Future<List<BluetoothDeviceInfo>> getPairedDevices() async {
-    if (!isSupported) {
-      return const <BluetoothDeviceInfo>[];
-    }
-
-    try {
-      await _requestBluetoothPermissions();
-      final rawDevices = await FlutterBluetoothSerial.getPairedDevices();
-      return rawDevices
-          .map(
-            (device) => BluetoothDeviceInfo(
-              name: (device['name'] ?? 'Sin nombre').trim(),
-              address: (device['address'] ?? '').trim(),
-            ),
-          )
-          .where((device) => device.address.isNotEmpty)
-          .toList(growable: false);
-    } on PlatformException catch (error) {
-      _lastError = _mapBluetoothPlatformError(
-        error.message,
-        fallback:
-            'No se pudieron listar los dispositivos Bluetooth emparejados.',
-      );
-      throw BluetoothCommandException(_lastError);
-    } catch (error) {
-      _lastError = _mapBluetoothPlatformError(
-        error.toString(),
-        fallback:
-            'No se pudieron listar los dispositivos Bluetooth emparejados.',
-      );
-      throw BluetoothCommandException(_lastError);
-    }
+    return _loadPairedDevices(requestPermissions: true);
   }
 
   Future<void> _requestBluetoothPermissions() async {
@@ -182,13 +188,56 @@ class ClassicBluetoothCommandService extends GetxService
 
       // La libreria devuelve false apenas dispara el dialogo de permisos y no
       // espera el callback del sistema. No lo tratamos como fallo definitivo.
+      _permissionRequestedAt = DateTime.now();
       _lastError =
           'Android mostro o requiere permisos Bluetooth. Si ya aceptaste '
           '"Dispositivos cercanos", intenta de nuevo Refrescar o Conectar.';
+      _logPermissionRequest();
     } on PlatformException catch (error) {
       _lastError = _mapBluetoothPlatformError(
         error.message,
         fallback: 'No se pudieron solicitar permisos Bluetooth en Android.',
+      );
+      throw BluetoothCommandException(_lastError);
+    }
+  }
+
+  Future<List<BluetoothDeviceInfo>> _loadPairedDevices({
+    required bool requestPermissions,
+  }) async {
+    if (!isSupported) {
+      return const <BluetoothDeviceInfo>[];
+    }
+
+    try {
+      if (requestPermissions) {
+        await _requestBluetoothPermissions();
+      }
+
+      final rawDevices = await FlutterBluetoothSerial.getPairedDevices();
+      final devices = rawDevices
+          .map(
+            (device) => BluetoothDeviceInfo(
+              name: (device['name'] ?? 'Sin nombre').trim(),
+              address: (device['address'] ?? '').trim(),
+            ),
+          )
+          .where((device) => device.address.isNotEmpty)
+          .toList(growable: false);
+      _lastError = '';
+      return devices;
+    } on PlatformException catch (error) {
+      _lastError = _mapBluetoothPlatformError(
+        error.message,
+        fallback:
+            'No se pudieron listar los dispositivos Bluetooth emparejados.',
+      );
+      throw BluetoothCommandException(_lastError);
+    } catch (error) {
+      _lastError = _mapBluetoothPlatformError(
+        error.toString(),
+        fallback:
+            'No se pudieron listar los dispositivos Bluetooth emparejados.',
       );
       throw BluetoothCommandException(_lastError);
     }
@@ -289,5 +338,38 @@ class ClassicBluetoothCommandService extends GetxService
     }
 
     return message;
+  }
+
+  void _logPermissionRequest() {
+    if (!kDebugMode) {
+      return;
+    }
+
+    debugPrint(
+      'ClassicBluetoothCommandService -> permisos Bluetooth solicitados; '
+      'esperando confirmacion del sistema.',
+    );
+  }
+
+  void _logBluetoothConnect(String address, Duration elapsed) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    debugPrint(
+      'ClassicBluetoothCommandService -> connected $address '
+      'in ${elapsed.inMilliseconds}ms',
+    );
+  }
+
+  void _logBluetoothSend(String payload, Duration elapsed) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    debugPrint(
+      'ClassicBluetoothCommandService -> $payload '
+      '(${elapsed.inMilliseconds}ms)',
+    );
   }
 }

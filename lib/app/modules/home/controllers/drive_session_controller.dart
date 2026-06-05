@@ -44,6 +44,10 @@ class DriveSessionController extends GetxController {
       _mobileCameraRelayService.controller;
   bool get showPhoneCameraPanel => isMobileClient && canUsePhoneCamera;
   bool get showImmersiveMobileHome => isMobileClient && canUsePhoneCamera;
+  bool get isRemotePreviewStreamingEnabled =>
+      _pollingService.previewStreamingEnabled;
+  String get pollingMetricsSummary => _pollingService.metricsSummary;
+  String get relayMetricsSummary => _mobileCameraRelayService.metricsSummary;
 
   String get phoneCameraStatusLabel {
     switch (mobileCameraStatus.value) {
@@ -105,6 +109,11 @@ class DriveSessionController extends GetxController {
   }
 
   String get cameraSummary {
+    if (showPhoneCameraPanel && !isRemotePreviewStreamingEnabled) {
+      return 'Preview remoto en pausa para mantener fluida la camara del celular. '
+          'El backend sigue enviando estado de mano y auto.';
+    }
+
     if (effectiveState.hasCameraPreview) {
       return 'Vista en vivo recibida desde Flask/OpenCV.';
     }
@@ -149,9 +158,17 @@ class DriveSessionController extends GetxController {
     _pollingService.setPreviewStreamingEnabled(true);
   }
 
+  Future<void> openControlCenter() async {
+    isDiagnosticsVisible.value = true;
+  }
+
   void closeDiagnosticsPanel() {
     isDiagnosticsVisible.value = false;
     _pollingService.setPreviewStreamingEnabled(!isMobileClient);
+  }
+
+  void closeControlCenter() {
+    isDiagnosticsVisible.value = false;
   }
 
   @override

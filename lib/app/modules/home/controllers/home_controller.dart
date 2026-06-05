@@ -104,6 +104,11 @@ class HomeController extends GetxController {
   String get handSummary => _driveSessionController.handSummary;
   String get statePreview => _driveSessionController.statePreview;
   String get cameraSummary => _driveSessionController.cameraSummary;
+  String get observabilitySummary => [
+    _driveSessionController.pollingMetricsSummary,
+    _driveSessionController.relayMetricsSummary,
+    _bluetoothController.metricsSummary,
+  ].join('\n\n');
 
   Future<void> connect() => _connectionController.connect();
 
@@ -153,8 +158,13 @@ class HomeController extends GetxController {
   Future<void> openDiagnosticsPanel() =>
       _driveSessionController.openDiagnosticsPanel();
 
+  Future<void> openControlCenter() =>
+      _driveSessionController.openControlCenter();
+
   void closeDiagnosticsPanel() =>
       _driveSessionController.closeDiagnosticsPanel();
+
+  void closeControlCenter() => _driveSessionController.closeControlCenter();
 
   @override
   void onInit() {

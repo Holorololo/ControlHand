@@ -61,6 +61,20 @@ class BluetoothController extends GetxController {
   AutoStatePollingService get _statePollingService =>
       _pollingService ?? Get.find<AutoStatePollingService>();
 
+  Duration? get bluetoothConnectDuration => _service.lastConnectDuration;
+  Duration? get lastBluetoothSendDuration => _service.lastSendDuration;
+  DateTime? get permissionRequestedAt => _service.permissionRequestedAt;
+  String get metricsSummary => [
+    'bluetooth:',
+    '  status: ${isConnected.value ? 'connected' : 'disconnected'}',
+    '  output_mode: ${outputMode.value.name}',
+    '  last_payload: ${lastPayload.value.isEmpty ? 'none' : lastPayload.value}',
+    '  last_connect_ms: ${bluetoothConnectDuration?.inMilliseconds ?? 'n/a'}',
+    '  last_send_ms: ${lastBluetoothSendDuration?.inMilliseconds ?? 'n/a'}',
+    '  permission_requested_at: ${permissionRequestedAt?.toIso8601String() ?? 'n/a'}',
+    '  last_error: ${errorMessage.value.isEmpty ? 'none' : errorMessage.value}',
+  ].join('\n');
+
   Future<void> connect({String? address}) async {
     try {
       final targetAddress = address ?? selectedDeviceAddress.value;
@@ -313,7 +327,10 @@ class BluetoothController extends GetxController {
     _setRxIfChanged<bool>(isMockMode, isMockModeDefault);
     _setRxIfChanged<BluetoothOutputMode>(outputMode, initialOutputMode);
     _syncConnectedDeviceState();
-    unawaited(refreshPairedDevices());
+
+    if (isMockModeDefault) {
+      unawaited(refreshPairedDevices());
+    }
 
     if (startConnected) {
       unawaited(connect());
