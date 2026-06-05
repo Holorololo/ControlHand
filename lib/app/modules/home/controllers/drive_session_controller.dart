@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
+import '../../../data/mappers/car_command_mapper.dart';
 import '../../../data/models/auto_state.dart';
 import '../../../services/auto_state_polling_service.dart';
 import '../../../services/backend_process_service.dart';
@@ -23,6 +25,7 @@ class DriveSessionController extends GetxController {
       Get.find<ConnectionController>();
 
   final RxBool isDiagnosticsVisible = false.obs;
+  final RxBool isDeveloperModeEnabled = false.obs;
   AutoState? _cachedStatePreviewState;
   String? _cachedStatePreview;
 
@@ -46,8 +49,30 @@ class DriveSessionController extends GetxController {
   bool get showImmersiveMobileHome => isMobileClient && canUsePhoneCamera;
   bool get isRemotePreviewStreamingEnabled =>
       _pollingService.previewStreamingEnabled;
+  bool get canUseDeveloperMode => kDebugMode;
   String get pollingMetricsSummary => _pollingService.metricsSummary;
   String get relayMetricsSummary => _mobileCameraRelayService.metricsSummary;
+  String get demoBackendStatusLabel {
+    switch (_connectionController.connectionStatus.value) {
+      case SocketConnectionStatus.connected:
+        return 'Backend conectado';
+      case SocketConnectionStatus.connecting:
+        return 'Reconectando';
+      case SocketConnectionStatus.disconnected:
+        return 'Backend desconectado';
+    }
+  }
+
+  String get demoBackendStatusMessage {
+    switch (_connectionController.connectionStatus.value) {
+      case SocketConnectionStatus.connected:
+        return 'Listo para detectar mano desde la camara del celular.';
+      case SocketConnectionStatus.connecting:
+        return 'Reconectando con la computadora...';
+      case SocketConnectionStatus.disconnected:
+        return 'No pudimos hablar con el backend. Verifica que la computadora siga encendida y en la misma red.';
+    }
+  }
 
   String get phoneCameraStatusLabel {
     switch (mobileCameraStatus.value) {
@@ -68,8 +93,13 @@ class DriveSessionController extends GetxController {
     }
   }
 
-  String get movementLabel =>
-      effectiveState.carMoving ? 'Auto avanzando' : 'Auto detenido';
+  String get movementLabel {
+    final command = CarCommandMapper.fromAutoState(effectiveState);
+    return switch (command) {
+      _ when !hasData => 'Auto detenido',
+      _ => 'Comando ${CarCommandMapper.toVisualText(command)}',
+    };
+  }
 
   String get packetLabel {
     final packetTime = lastPacketAt.value;
@@ -92,7 +122,19 @@ class DriveSessionController extends GetxController {
       return 'No se detecta mano.';
     }
 
-    return effectiveState.handState;
+    if (effectiveState.fingerCount <= 0) {
+      return 'Mano cerrada';
+    }
+
+    if (effectiveState.fingerCount >= 5) {
+      return 'Mano abierta';
+    }
+
+    if (effectiveState.fingerCount == 1) {
+      return '1 dedo detectado';
+    }
+
+    return '${effectiveState.fingerCount} dedos detectados';
   }
 
   String get statePreview {
@@ -160,6 +202,14 @@ class DriveSessionController extends GetxController {
 
   Future<void> openControlCenter() async {
     isDiagnosticsVisible.value = true;
+  }
+
+  void toggleDeveloperMode() {
+    if (!canUseDeveloperMode) {
+      return;
+    }
+
+    isDeveloperModeEnabled.toggle();
   }
 
   void closeDiagnosticsPanel() {

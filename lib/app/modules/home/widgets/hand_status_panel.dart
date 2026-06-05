@@ -67,7 +67,8 @@ class HandStatusPanel extends StatelessWidget {
             runSpacing: 10,
             children: <Widget>[
               MetricBadge(label: 'Dedos', value: viewModel.fingersValue),
-              MetricBadge(label: 'Auto', value: viewModel.carValue),
+              MetricBadge(label: 'Comando', value: viewModel.commandValue),
+              MetricBadge(label: 'Payload', value: viewModel.payloadValue),
               MetricBadge(label: 'Paquete', value: viewModel.packetLabel),
             ],
           ),
@@ -88,47 +89,71 @@ class _CompactHandStatusPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final payloadLabel = bluetoothStatusViewModel?.lastPayloadLabel;
-    final commandText = bluetoothStatusViewModel?.lastCommandLabel;
-    final commandLabel = bluetoothStatusViewModel == null
-        ? null
-        : '${payloadLabel == null || payloadLabel == 'Sin payload' ? '--' : payloadLabel} / '
-              '${commandText == null || commandText == 'Sin comando' ? 'espera' : commandText}';
+    final handTone = _handTone;
+    final outputLabel = _outputLabel;
+    final outputTone = _outputTone;
 
-    return GlassPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              StatusDotChip(
-                label: viewModel.summary,
-                tone: viewModel.cameraTone,
-              ),
-              StatusDotChip(
-                label: viewModel.cameraStatusLabel,
-                tone: viewModel.cameraTone,
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              MetricBadge(label: 'Dedos', value: viewModel.fingersValue),
-              MetricBadge(label: 'Auto', value: viewModel.carValue),
-              MetricBadge(label: 'Paquete', value: viewModel.packetLabel),
-              if (commandLabel != null)
-                MetricBadge(label: 'Cmd', value: commandLabel),
-            ],
-          ),
-        ],
+    return RepaintBoundary(
+      child: GlassPanel(
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: <Widget>[
+            StatusDotChip(label: viewModel.summary, tone: handTone),
+            StatusDotChip(
+              label: 'Dedos ${viewModel.fingersValue}',
+              tone: HomeTone.soft,
+            ),
+            if (outputLabel != null)
+              StatusDotChip(label: outputLabel, tone: outputTone),
+          ],
+        ),
       ),
     );
+  }
+
+  HomeTone get _handTone {
+    final normalized = viewModel.summary.trim().toLowerCase();
+    if (normalized.contains('abierta') || normalized.contains('open')) {
+      return HomeTone.good;
+    }
+    if (normalized.contains('cerrada') || normalized.contains('closed')) {
+      return HomeTone.warn;
+    }
+    return HomeTone.soft;
+  }
+
+  String? get _outputLabel {
+    if (bluetoothStatusViewModel == null) {
+      return null;
+    }
+    if (_normalizedPayload.isEmpty) {
+      return viewModel.commandValue;
+    }
+    return '${viewModel.commandValue} / $_normalizedPayload';
+  }
+
+  HomeTone get _outputTone {
+    final bluetoothViewModel = bluetoothStatusViewModel;
+    if (bluetoothViewModel == null) {
+      return HomeTone.soft;
+    }
+    if (!bluetoothViewModel.isBuzzerOutputMode) {
+      return bluetoothViewModel.outputModeTone;
+    }
+    return switch (_normalizedPayload) {
+      'S' => HomeTone.alert,
+      'H' => HomeTone.warn,
+      _ => HomeTone.good,
+    };
+  }
+
+  String get _normalizedPayload {
+    final payload = bluetoothStatusViewModel?.lastPayloadLabel.trim() ?? '';
+    if (payload.isEmpty || payload == 'Sin payload') {
+      return '';
+    }
+    return payload;
   }
 }
 

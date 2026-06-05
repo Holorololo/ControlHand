@@ -190,12 +190,24 @@ class _StaticCommandStatus extends StatelessWidget {
     final statusIcon = _statusIcon;
     final headline = _headline;
     final helperText = _helperText;
+    final animationDuration = Duration(
+      milliseconds: PerformanceConfig.enableOptimizedAnimations
+          ? PerformanceConfig.uiAnimationDurationMs
+          : 0,
+    );
+    final fastDuration = Duration(
+      milliseconds: PerformanceConfig.enableOptimizedAnimations
+          ? PerformanceConfig.uiAnimationFastDurationMs
+          : 0,
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 420;
 
-        return Container(
+        return AnimatedContainer(
+          duration: animationDuration,
+          curve: Curves.easeOutCubic,
           width: double.infinity,
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
@@ -214,11 +226,31 @@ class _StaticCommandStatus extends StatelessWidget {
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    _StatusHeadline(
-                      palette: palette,
-                      icon: statusIcon,
-                      headline: headline,
-                      helperText: helperText,
+                    AnimatedSwitcher(
+                      duration: fastDuration,
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: ScaleTransition(
+                            scale: Tween<double>(
+                              begin: 0.97,
+                              end: 1,
+                            ).animate(animation),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: _StatusHeadline(
+                        key: ValueKey<String>(
+                          '$headline|$helperText|${bluetoothViewModel.lastPayloadLabel}',
+                        ),
+                        palette: palette,
+                        icon: statusIcon,
+                        headline: headline,
+                        helperText: helperText,
+                      ),
                     ),
                     const SizedBox(height: 14),
                     _StatusMetaChips(
@@ -231,11 +263,31 @@ class _StaticCommandStatus extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Expanded(
-                      child: _StatusHeadline(
-                        palette: palette,
-                        icon: statusIcon,
-                        headline: headline,
-                        helperText: helperText,
+                      child: AnimatedSwitcher(
+                        duration: fastDuration,
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        transitionBuilder: (child, animation) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: ScaleTransition(
+                              scale: Tween<double>(
+                                begin: 0.97,
+                                end: 1,
+                              ).animate(animation),
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: _StatusHeadline(
+                          key: ValueKey<String>(
+                            '$headline|$helperText|${bluetoothViewModel.lastPayloadLabel}',
+                          ),
+                          palette: palette,
+                          icon: statusIcon,
+                          headline: headline,
+                          helperText: helperText,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -256,51 +308,45 @@ class _StaticCommandStatus extends StatelessWidget {
     if (!bluetoothViewModel.isConnected) {
       return HomeTone.alert;
     }
-    if (bluetoothViewModel.isBuzzerOutputMode) {
-      return _normalizedPayload == '1' ? HomeTone.good : HomeTone.alert;
+    if (_normalizedPayload == 'H') {
+      return HomeTone.warn;
     }
-    return viewModel.isMoving ? HomeTone.good : HomeTone.soft;
+    return viewModel.isMoving ? HomeTone.good : HomeTone.alert;
   }
 
   IconData get _statusIcon {
     if (!bluetoothViewModel.isConnected) {
       return Icons.bluetooth_disabled_rounded;
     }
-    if (bluetoothViewModel.isBuzzerOutputMode) {
-      return _normalizedPayload == '1'
-          ? Icons.volume_up_rounded
-          : Icons.volume_off_rounded;
-    }
-    return viewModel.isMoving
-        ? Icons.play_circle_fill_rounded
-        : Icons.pause_circle_filled_rounded;
+    return switch (_normalizedPayload) {
+      'F' => Icons.keyboard_double_arrow_up_rounded,
+      'B' => Icons.keyboard_double_arrow_down_rounded,
+      'L' => Icons.turn_left_rounded,
+      'R' => Icons.turn_right_rounded,
+      'H' => Icons.campaign_rounded,
+      _ => Icons.pause_circle_filled_rounded,
+    };
   }
 
   String get _headline {
     if (!bluetoothViewModel.isConnected) {
       return 'SIN ENLACE';
     }
-    if (bluetoothViewModel.isBuzzerOutputMode) {
-      return _normalizedPayload == '1' ? 'BUZZER ON' : 'BUZZER OFF';
+    if (_normalizedPayload.isEmpty) {
+      return 'AUTO EN ESPERA';
     }
-    return viewModel.isMoving ? 'COMANDO ACTIVO' : 'AUTO EN ESPERA';
+    return '${viewModel.commandLabel.toUpperCase()} | ${viewModel.payloadLabel}';
   }
 
   String get _helperText {
     if (!bluetoothViewModel.isConnected) {
       return 'Conecta Bluetooth para enviar comandos al Arduino o al auto virtual.';
     }
-    if (bluetoothViewModel.isBuzzerOutputMode) {
-      return _normalizedPayload == '1'
-          ? 'Payload 1 enviado. El buzzer debe quedar encendido.'
-          : 'Payload 0 listo. El buzzer debe permanecer apagado.';
-    }
-    final payloadText = bluetoothViewModel.lastPayloadLabel;
-    return 'Ultimo comando ${bluetoothViewModel.lastCommandLabel} con payload $payloadText.';
+    return 'Ultimo comando ${viewModel.commandLabel} con payload ${viewModel.payloadLabel}.';
   }
 
   String get _normalizedPayload {
-    final payload = bluetoothViewModel.lastPayloadLabel;
+    final payload = viewModel.payloadLabel;
     return payload == 'Sin payload' ? '' : payload;
   }
 }
@@ -311,6 +357,7 @@ class _StatusHeadline extends StatelessWidget {
     required this.icon,
     required this.headline,
     required this.helperText,
+    super.key,
   });
 
   final HomeTonePalette palette;
@@ -394,8 +441,8 @@ class _StatusMetaChips extends StatelessWidget {
             label: bluetoothViewModel.outputModeLabel,
             tone: bluetoothViewModel.outputModeTone,
           ),
-          SoftChip(label: bluetoothViewModel.lastCommandLabel),
-          SoftChip(label: 'Payload ${bluetoothViewModel.lastPayloadLabel}'),
+          SoftChip(label: viewModel.commandLabel),
+          SoftChip(label: 'Payload ${viewModel.payloadLabel}'),
           SoftChip(label: viewModel.movementLabel),
         ],
       ),

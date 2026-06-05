@@ -125,8 +125,12 @@ BackendSnapshotDto _buildSnapshot({
   return BackendSnapshotDto(
     timestamp: DateTime(2026, 6, 5, 10, 30),
     handDetected: true,
+    handStatus: 'open',
     handState: 'MANO ABIERTA',
+    fingerCount: 5,
     fingersUp: 5,
+    command: 'forward',
+    payload: 'F',
     carMoving: true,
     carX: 420,
     carY: 350,

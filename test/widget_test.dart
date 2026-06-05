@@ -12,9 +12,10 @@ void main() {
     await tester.pumpWidget(const MovilControlApp(autoConnect: false));
 
     expect(find.text('MOVILCONTROL // NEON DRIVE'), findsOneWidget);
-    expect(find.text('Centro de control'), findsOneWidget);
-    expect(find.text('Preview procesado'), findsOneWidget);
-    expect(find.text('Estado del auto'), findsOneWidget);
-    expect(find.text('Conectar'), findsAtLeastNWidgets(1));
+    expect(find.text('Bluetooth y control'), findsOneWidget);
+    expect(find.text('Backend en la computadora'), findsNothing);
+    expect(find.text('Preview procesado'), findsNothing);
+    expect(find.text('Host'), findsNothing);
+    expect(find.text('Puerto'), findsNothing);
   });
 }

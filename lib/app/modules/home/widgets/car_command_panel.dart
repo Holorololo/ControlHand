@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
 
-import '../../../data/enums/buzzer_command.dart';
 import '../../../data/enums/car_command.dart';
 import 'bluetooth_status_panel.dart';
+import 'buzzer_status_panel.dart';
 import 'home_presentation_models.dart';
 import 'home_widget_support.dart';
 import 'manual_car_control_panel.dart';
-import 'manual_buzzer_control_panel.dart';
 
 class CarCommandPanel extends StatelessWidget {
   const CarCommandPanel({
     required this.bluetoothStatusViewModel,
     required this.activeCommand,
-    required this.activeBuzzerCommand,
+    required this.activePayload,
     required this.onToggleBluetoothConnection,
     required this.onSelectAutoVirtualMode,
     required this.onSelectBuzzerRealMode,
@@ -23,14 +22,14 @@ class CarCommandPanel extends StatelessWidget {
     required this.onLeft,
     required this.onRight,
     required this.onBackward,
-    required this.onBuzzerOn,
-    required this.onBuzzerOff,
+    required this.onHorn,
+    this.developerMode = false,
     super.key,
   });
 
   final BluetoothStatusViewModel bluetoothStatusViewModel;
   final CarCommand? activeCommand;
-  final BuzzerCommand? activeBuzzerCommand;
+  final String activePayload;
   final VoidCallback onToggleBluetoothConnection;
   final VoidCallback onSelectAutoVirtualMode;
   final VoidCallback onSelectBuzzerRealMode;
@@ -41,8 +40,8 @@ class CarCommandPanel extends StatelessWidget {
   final VoidCallback onLeft;
   final VoidCallback onRight;
   final VoidCallback onBackward;
-  final VoidCallback onBuzzerOn;
-  final VoidCallback onBuzzerOff;
+  final VoidCallback onHorn;
+  final bool developerMode;
 
   @override
   Widget build(BuildContext context) {
@@ -51,14 +50,20 @@ class CarCommandPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            'Comandos del auto',
+            'Bluetooth y control',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 8),
           Text(
-            'Capa preparada para enviar comandos por Bluetooth clasico. '
-            'Puedes alternar entre el auto virtual y el buzzer real sin tocar el backend.',
+            developerMode
+                ? 'Panel de pruebas para Bluetooth clasico, auto virtual y auto real con bocina.'
+                : 'Conecta tu HC-05/HC-06, revisa el ultimo payload y prueba direccion, avance, retroceso y bocina.',
             style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 16),
+          BuzzerStatusPanel(
+            viewModel: bluetoothStatusViewModel,
+            activeCommand: activeCommand,
           ),
           const SizedBox(height: 16),
           BluetoothStatusPanel(
@@ -68,26 +73,24 @@ class CarCommandPanel extends StatelessWidget {
             onSelectBuzzerRealMode: onSelectBuzzerRealMode,
             onSelectDevice: onSelectBluetoothDevice,
             onRefreshDevices: onRefreshBluetoothDevices,
+            developerMode: developerMode,
           ),
           const SizedBox(height: 16),
-          bluetoothStatusViewModel.showManualBuzzerControl
-              ? ManualBuzzerControlPanel(
-                  isConnected: bluetoothStatusViewModel.isConnected,
-                  activeCommand: activeBuzzerCommand,
-                  helperMessage:
-                      bluetoothStatusViewModel.manualBuzzerControlHint,
-                  onTurnOn: onBuzzerOn,
-                  onTurnOff: onBuzzerOff,
-                )
-              : ManualCarControlPanel(
-                  isConnected: bluetoothStatusViewModel.isConnected,
-                  activeCommand: activeCommand,
-                  onForward: onForward,
-                  onStop: onStop,
-                  onLeft: onLeft,
-                  onRight: onRight,
-                  onBackward: onBackward,
-                ),
+          ManualCarControlPanel(
+            isConnected: bluetoothStatusViewModel.isConnected,
+            activeCommand: activeCommand,
+            helperMessage: bluetoothStatusViewModel.manualBuzzerControlHint,
+            onForward: onForward,
+            onStop: onStop,
+            onLeft: onLeft,
+            onRight: onRight,
+            onBackward: onBackward,
+            onHorn: onHorn,
+          ),
+          if (activePayload.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 12),
+            SoftChip(label: 'Payload actual $activePayload'),
+          ],
         ],
       ),
     );

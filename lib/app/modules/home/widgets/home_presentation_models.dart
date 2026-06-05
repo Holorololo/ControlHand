@@ -138,7 +138,8 @@ class HandStatusViewModel {
     required this.cameraTone,
     required this.detailMessage,
     required this.fingersValue,
-    required this.carValue,
+    required this.commandValue,
+    required this.payloadValue,
     required this.packetLabel,
   });
 
@@ -148,8 +149,9 @@ class HandStatusViewModel {
     required HomeTone cameraTone,
     required String cameraSummary,
     required String mobileCameraInfoMessage,
-    required int fingersUp,
-    required bool carMoving,
+    required int fingerCount,
+    required String commandLabel,
+    required String payloadLabel,
     required String packetLabel,
   }) {
     return HandStatusViewModel._(
@@ -159,8 +161,9 @@ class HandStatusViewModel {
       detailMessage: mobileCameraInfoMessage.isEmpty
           ? cameraSummary
           : mobileCameraInfoMessage,
-      fingersValue: '$fingersUp',
-      carValue: carMoving ? 'AVANZA' : 'STOP',
+      fingersValue: '$fingerCount',
+      commandValue: commandLabel,
+      payloadValue: payloadLabel,
       packetLabel: packetLabel,
     );
   }
@@ -170,8 +173,11 @@ class HandStatusViewModel {
   final HomeTone cameraTone;
   final String detailMessage;
   final String fingersValue;
-  final String carValue;
+  final String commandValue;
+  final String payloadValue;
   final String packetLabel;
+
+  String get carValue => commandValue;
 }
 
 class CarStatusViewModel {
@@ -182,6 +188,8 @@ class CarStatusViewModel {
     required this.fingersValue,
     required this.speedValue,
     required this.handStateLabel,
+    required this.commandLabel,
+    required this.payloadLabel,
     required this.carProgress,
     required this.isMoving,
     required this.errorMessage,
@@ -190,19 +198,27 @@ class CarStatusViewModel {
   factory CarStatusViewModel({
     required String movementLabel,
     required bool carMoving,
-    required int fingersUp,
+    required int fingerCount,
     required int speed,
     required String handState,
+    required String commandLabel,
+    required String payloadLabel,
     required double carProgress,
     required String errorMessage,
   }) {
+    final isStopped = payloadLabel == 'S';
+    final isHorn = payloadLabel == 'H';
     return CarStatusViewModel._(
       movementLabel: movementLabel,
-      statusLabel: carMoving ? 'GO' : 'STOP',
-      statusTone: carMoving ? HomeTone.good : HomeTone.alert,
-      fingersValue: '$fingersUp',
+      statusLabel: isHorn ? 'HORN' : (isStopped ? 'STOP' : payloadLabel),
+      statusTone: isHorn
+          ? HomeTone.warn
+          : (carMoving ? HomeTone.good : HomeTone.alert),
+      fingersValue: '$fingerCount',
       speedValue: '$speed',
       handStateLabel: handState,
+      commandLabel: commandLabel,
+      payloadLabel: payloadLabel,
       carProgress: carProgress,
       isMoving: carMoving,
       errorMessage: errorMessage,
@@ -215,6 +231,8 @@ class CarStatusViewModel {
   final String fingersValue;
   final String speedValue;
   final String handStateLabel;
+  final String commandLabel;
+  final String payloadLabel;
   final double carProgress;
   final bool isMoving;
   final String errorMessage;
@@ -325,17 +343,17 @@ class BluetoothStatusViewModel {
       transportModeTone: isMockMode ? HomeTone.soft : HomeTone.warn,
       outputModeLabel: outputMode == BluetoothOutputMode.autoVirtual
           ? 'Auto virtual'
-          : 'Buzzer real',
+          : 'Auto real',
       outputModeTone: outputMode == BluetoothOutputMode.autoVirtual
           ? HomeTone.soft
           : HomeTone.good,
       isBuzzerOutputMode: outputMode == BluetoothOutputMode.buzzerReal,
-      showManualBuzzerControl:
-          outputMode == BluetoothOutputMode.buzzerReal ||
-          isManualBuzzerControlEnabled,
-      manualBuzzerControlHint: isManualBuzzerControlEnabled
-          ? 'Mano abierta detectada: control manual habilitado'
-          : '',
+      showManualBuzzerControl: isManualBuzzerControlEnabled,
+      manualBuzzerControlHint: outputMode == BluetoothOutputMode.buzzerReal
+          ? 'Modo real listo: envia S, L, R, H, B y F al Arduino.'
+          : (isManualBuzzerControlEnabled
+                ? 'Gesto detectado: puedes probar control manual sin reenviar el mismo payload.'
+                : 'Modo virtual: revisa el comando actual antes de pasar al Arduino.'),
       lastCommandLabel: lastCommandLabel.isEmpty
           ? 'Sin comando'
           : lastCommandLabel,

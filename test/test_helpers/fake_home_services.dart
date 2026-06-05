@@ -162,6 +162,9 @@ class FakeMobileCameraRelayService extends MobileCameraRelayService {
 class TestConnectionController extends ConnectionController {
   TestConnectionController({
     super.autoConnect = false,
+    super.apiBaseUrlOverride,
+    super.backendHostOverride,
+    super.backendPortOverride,
     this.isMobileClientOverride,
   });
 

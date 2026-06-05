@@ -9,7 +9,17 @@ import '../../../services/backend_process_service.dart';
 import '../../../services/mobile_camera_relay_service.dart';
 
 class ConnectionController extends GetxController {
-  ConnectionController({this.autoConnect = true});
+  ConnectionController({
+    this.autoConnect = true,
+    String? apiBaseUrlOverride,
+    String? backendHostOverride,
+    int? backendPortOverride,
+  }) : _apiBaseUrlOverrideValue =
+           apiBaseUrlOverride ?? _apiBaseUrlOverrideDefault,
+       _backendHostOverrideValue =
+           backendHostOverride ?? _backendHostOverrideDefault,
+       _backendPortOverrideValue =
+           backendPortOverride ?? _backendPortOverrideDefault;
 
   final bool autoConnect;
 
@@ -17,18 +27,22 @@ class ConnectionController extends GetxController {
       r'.\venv\Scripts\python.exe backend\backend.py --mode backend --input-source desktop --host 0.0.0.0 --port 5000';
   static const String mobileBackendCommand =
       r'.\venv\Scripts\python.exe backend\backend.py --mode backend --input-source mobile --host 0.0.0.0 --port 5000';
-  static const String _apiBaseUrlOverride = String.fromEnvironment(
+  static const String _apiBaseUrlOverrideDefault = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: '',
   );
-  static const String _backendHostOverride = String.fromEnvironment(
+  static const String _backendHostOverrideDefault = String.fromEnvironment(
     'BACKEND_HOST',
     defaultValue: '',
   );
-  static const int _backendPortOverride = int.fromEnvironment(
+  static const int _backendPortOverrideDefault = int.fromEnvironment(
     'BACKEND_PORT',
     defaultValue: 5000,
   );
+
+  final String _apiBaseUrlOverrideValue;
+  final String _backendHostOverrideValue;
+  final int _backendPortOverrideValue;
 
   final AutoStatePollingService _pollingService =
       Get.find<AutoStatePollingService>();
@@ -58,8 +72,8 @@ class ConnectionController extends GetxController {
   bool get canAutoStartBackend => _backendProcessService.canAutoStart;
   bool get isMobileClient => GetPlatform.isAndroid || GetPlatform.isIOS;
   bool get hasConfiguredHostOverride =>
-      _apiBaseUrlOverride.trim().isNotEmpty ||
-      _backendHostOverride.trim().isNotEmpty;
+      _apiBaseUrlOverrideValue.trim().isNotEmpty ||
+      _backendHostOverrideValue.trim().isNotEmpty;
   bool get isLoopbackHost => _isLoopbackHost(hostTextController.text.trim());
   bool get canRestartManagedBackend =>
       _backendProcessService.canManageHost(hostTextController.text.trim());
@@ -165,16 +179,24 @@ class ConnectionController extends GetxController {
       return;
     }
 
+    final endpoint = _normalizeBackendEndpoint(host: host, port: port);
+
     if (canUsePhoneCamera) {
       await _mobileCameraRelayService.stopRelay();
     }
 
-    await _backendProcessService.ensureStarted(host: host, port: port);
-    await _pollingService.connect(host: host, port: port);
+    await _backendProcessService.ensureStarted(
+      host: endpoint.host,
+      port: endpoint.port,
+    );
+    await _pollingService.connect(host: host, port: endpoint.port);
 
     if (_pollingService.status.value == SocketConnectionStatus.connected &&
         canUsePhoneCamera) {
-      await _mobileCameraRelayService.startRelay(host: host, port: port);
+      await _mobileCameraRelayService.startRelay(
+        host: host,
+        port: endpoint.port,
+      );
     }
   }
 
@@ -210,12 +232,12 @@ class ConnectionController extends GetxController {
   }
 
   String _resolveInitialHost() {
-    final apiBaseUrl = _apiBaseUrlOverride.trim();
+    final apiBaseUrl = _apiBaseUrlOverrideValue.trim();
     if (apiBaseUrl.isNotEmpty) {
       return apiBaseUrl;
     }
 
-    final hostOverride = _backendHostOverride.trim();
+    final hostOverride = _backendHostOverrideValue.trim();
     if (hostOverride.isNotEmpty) {
       return hostOverride;
     }
@@ -224,7 +246,7 @@ class ConnectionController extends GetxController {
   }
 
   int _resolveInitialPort() {
-    final apiBaseUrl = _apiBaseUrlOverride.trim();
+    final apiBaseUrl = _apiBaseUrlOverrideValue.trim();
     if (apiBaseUrl.isNotEmpty) {
       final uri = Uri.tryParse(apiBaseUrl);
       if (uri != null && uri.hasPort) {
@@ -232,7 +254,7 @@ class ConnectionController extends GetxController {
       }
     }
 
-    return _backendPortOverride;
+    return _backendPortOverrideValue;
   }
 
   bool _shouldAutoConnectOnLaunch() {
@@ -245,6 +267,22 @@ class ConnectionController extends GetxController {
     }
 
     return hasConfiguredHostOverride;
+  }
+
+  ({String host, int port}) _normalizeBackendEndpoint({
+    required String host,
+    required int port,
+  }) {
+    if (!host.contains('://')) {
+      return (host: host, port: port);
+    }
+
+    final uri = Uri.tryParse(host);
+    if (uri == null || uri.host.isEmpty) {
+      return (host: host, port: port);
+    }
+
+    return (host: uri.host, port: uri.hasPort ? uri.port : port);
   }
 
   String _buildEndpointLabel(String host, String portText) {

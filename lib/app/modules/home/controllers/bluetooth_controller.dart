@@ -3,9 +3,7 @@ import 'dart:async';
 import 'package:get/get.dart';
 
 import '../../../data/enums/bluetooth_output_mode.dart';
-import '../../../data/enums/buzzer_command.dart';
 import '../../../data/enums/car_command.dart';
-import '../../../data/mappers/buzzer_command_mapper.dart';
 import '../../../data/mappers/car_command_mapper.dart';
 import '../../../data/models/auto_state.dart';
 import '../../../services/auto_state_polling_service.dart';
@@ -36,7 +34,6 @@ class BluetoothController extends GetxController {
   final Rx<BluetoothOutputMode> outputMode =
       BluetoothOutputMode.autoVirtual.obs;
   final Rxn<CarCommand> lastCommand = Rxn<CarCommand>();
-  final Rxn<BuzzerCommand> lastBuzzerCommand = Rxn<BuzzerCommand>();
   final RxString lastCommandLabel = ''.obs;
   final RxString lastPayload = ''.obs;
   final RxString errorMessage = ''.obs;
@@ -52,7 +49,6 @@ class BluetoothController extends GetxController {
   String? _lastDispatchedPayload;
   _BluetoothPayloadRequest? _queuedPayloadRequest;
   DateTime? _lastManualDispatchAt;
-  bool _wasHandOpen = false;
   bool _sendInProgress = false;
 
   BluetoothCommandService get _service =>
@@ -127,6 +123,7 @@ class BluetoothController extends GetxController {
   Future<void> sendCarCommand(
     CarCommand command, {
     bool isManual = true,
+    bool allowDuplicatePayload = false,
   }) async {
     final payload = CarCommandMapper.toPayload(command);
     await _dispatchBluetoothPayload(
@@ -135,31 +132,30 @@ class BluetoothController extends GetxController {
       carCommand: command,
       isManual: isManual,
       reportDisconnected: isManual,
+      allowDuplicatePayload: allowDuplicatePayload,
     );
   }
 
-  Future<void> sendCommandFromHandStatus(String handStatus) async {
-    final command = CarCommandMapper.fromHandStatus(handStatus);
+  Future<void> sendCommandFromHandStatus(
+    String handStatus, {
+    bool handDetected = true,
+    int fingerCount = 0,
+    String? backendCommand,
+    String? payload,
+  }) async {
+    final command = CarCommandMapper.fromBackendState(
+      handDetected: handDetected,
+      handStatus: handStatus,
+      fingerCount: fingerCount,
+      backendCommand: backendCommand,
+      payload: payload,
+    );
     await sendCarCommand(command, isManual: false);
   }
 
-  Future<void> sendBuzzerCommand(
-    BuzzerCommand command, {
-    bool isManual = true,
-  }) async {
-    final payload = BuzzerCommandMapper.toPayload(command);
-    await _dispatchBluetoothPayload(
-      payload: payload,
-      commandLabel: BuzzerCommandMapper.toVisualText(command),
-      buzzerCommand: command,
-      isManual: isManual,
-      reportDisconnected: isManual,
-    );
-  }
-
-  Future<void> sendBuzzerCommandFromHandStatus(String handStatus) async {
-    final command = BuzzerCommandMapper.fromHandStatus(handStatus);
-    await sendBuzzerCommand(command, isManual: false);
+  Future<void> sendCommandFromAutoState(AutoState state) async {
+    final command = CarCommandMapper.fromAutoState(state);
+    await sendCarCommand(command, isManual: false);
   }
 
   Future<void> sendForward() => sendCarCommand(CarCommand.forward);
@@ -172,9 +168,8 @@ class BluetoothController extends GetxController {
 
   Future<void> sendBackward() => sendCarCommand(CarCommand.backward);
 
-  Future<void> sendBuzzerOn() => sendBuzzerCommand(BuzzerCommand.on);
-
-  Future<void> sendBuzzerOff() => sendBuzzerCommand(BuzzerCommand.off);
+  Future<void> sendHorn() =>
+      sendCarCommand(CarCommand.horn, allowDuplicatePayload: true);
 
   void enableAutoVirtualMode() {
     _setRxIfChanged<BluetoothOutputMode>(
@@ -190,6 +185,7 @@ class BluetoothController extends GetxController {
       outputMode,
       BluetoothOutputMode.buzzerReal,
     );
+    _setRxIfChanged<bool>(isManualBuzzerControlEnabled, true);
     _lastDispatchedPayload = null;
   }
 
@@ -247,17 +243,17 @@ class BluetoothController extends GetxController {
     required String payload,
     required String commandLabel,
     CarCommand? carCommand,
-    BuzzerCommand? buzzerCommand,
     required bool isManual,
     required bool reportDisconnected,
+    bool allowDuplicatePayload = false,
   }) async {
     final request = _BluetoothPayloadRequest(
       payload: payload,
       commandLabel: commandLabel,
       carCommand: carCommand,
-      buzzerCommand: buzzerCommand,
       isManual: isManual,
       reportDisconnected: reportDisconnected,
+      allowDuplicatePayload: allowDuplicatePayload,
     );
 
     if (!_canDispatchRequest(request)) {
@@ -278,7 +274,6 @@ class BluetoothController extends GetxController {
         _lastManualDispatchAt = DateTime.now();
       }
       _setRxIfChanged<CarCommand?>(lastCommand, carCommand);
-      _setRxIfChanged<BuzzerCommand?>(lastBuzzerCommand, buzzerCommand);
       _setRxIfChanged<String>(lastCommandLabel, commandLabel);
       _setRxIfChanged<String>(lastPayload, payload);
       _setRxIfChanged<String>(errorMessage, '');
@@ -298,9 +293,9 @@ class BluetoothController extends GetxController {
         payload: queuedRequest.payload,
         commandLabel: queuedRequest.commandLabel,
         carCommand: queuedRequest.carCommand,
-        buzzerCommand: queuedRequest.buzzerCommand,
         isManual: queuedRequest.isManual,
         reportDisconnected: queuedRequest.reportDisconnected,
+        allowDuplicatePayload: queuedRequest.allowDuplicatePayload,
       );
     }
   }
@@ -310,15 +305,17 @@ class BluetoothController extends GetxController {
       return;
     }
 
-    final handStatus = state.handDetected ? state.handState : 'none';
-    _syncManualBuzzerControlAvailability(handStatus);
+    final command = CarCommandMapper.fromAutoState(state);
+    _setRxIfChanged<bool>(
+      isManualBuzzerControlEnabled,
+      state.handDetected && state.fingerCount > 0,
+    );
+    _applyVisualCommandState(command);
 
     if (outputMode.value == BluetoothOutputMode.buzzerReal) {
-      unawaited(sendBuzzerCommandFromHandStatus(handStatus));
+      unawaited(sendCommandFromAutoState(state));
       return;
     }
-
-    unawaited(sendCommandFromHandStatus(handStatus));
   }
 
   @override
@@ -393,20 +390,13 @@ class BluetoothController extends GetxController {
     selectDevice(devices.first.address);
   }
 
-  void _syncManualBuzzerControlAvailability(String handStatus) {
-    final isHandOpen = _isOpenHandStatus(handStatus);
-    if (isHandOpen && !_wasHandOpen) {
-      _setRxIfChanged<bool>(isManualBuzzerControlEnabled, true);
-    }
-
-    _wasHandOpen = isHandOpen;
-  }
-
-  bool _isOpenHandStatus(String handStatus) {
-    final normalized = handStatus.trim().toLowerCase();
-    return normalized.contains('abierta') ||
-        normalized.contains('open') ||
-        normalized.contains('hand_open');
+  void _applyVisualCommandState(CarCommand command) {
+    _setRxIfChanged<CarCommand?>(lastCommand, command);
+    _setRxIfChanged<String>(
+      lastCommandLabel,
+      CarCommandMapper.toVisualText(command),
+    );
+    _setRxIfChanged<String>(lastPayload, CarCommandMapper.toPayload(command));
   }
 
   bool _canDispatchRequest(_BluetoothPayloadRequest request) {
@@ -420,12 +410,14 @@ class BluetoothController extends GetxController {
       return false;
     }
 
-    if (_lastDispatchedPayload == request.payload) {
+    if (!request.allowDuplicatePayload &&
+        _lastDispatchedPayload == request.payload) {
       return false;
     }
 
     final queuedRequest = _queuedPayloadRequest;
     if (_sendInProgress &&
+        !request.allowDuplicatePayload &&
         (queuedRequest?.payload == request.payload ||
             _lastDispatchedPayload == request.payload)) {
       return false;
@@ -507,15 +499,15 @@ class _BluetoothPayloadRequest {
     required this.payload,
     required this.commandLabel,
     required this.carCommand,
-    required this.buzzerCommand,
     required this.isManual,
     required this.reportDisconnected,
+    required this.allowDuplicatePayload,
   });
 
   final String payload;
   final String commandLabel;
   final CarCommand? carCommand;
-  final BuzzerCommand? buzzerCommand;
   final bool isManual;
   final bool reportDisconnected;
+  final bool allowDuplicatePayload;
 }

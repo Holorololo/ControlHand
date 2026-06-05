@@ -65,20 +65,16 @@ class MobilePreviewPanel extends StatelessWidget {
                 ),
               ),
             ),
-            const Positioned(
-              top: 18,
-              left: 18,
-              right: 18,
-              child: _TopOverlayBar(),
-            ),
             Positioned(
               left: 14,
               right: 14,
               bottom: 14,
-              child: HandStatusPanel(
-                viewModel: handStatusViewModel,
-                bluetoothStatusViewModel: bluetoothStatusViewModel,
-                compact: true,
+              child: RepaintBoundary(
+                child: HandStatusPanel(
+                  viewModel: handStatusViewModel,
+                  bluetoothStatusViewModel: bluetoothStatusViewModel,
+                  compact: true,
+                ),
               ),
             ),
             const Positioned.fill(child: IgnorePointer(child: TargetReticle())),
@@ -177,23 +173,6 @@ class ProcessedPreviewPanel extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _TopOverlayBar extends StatelessWidget {
-  const _TopOverlayBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Wrap(
-      alignment: WrapAlignment.spaceBetween,
-      spacing: 8,
-      runSpacing: 8,
-      children: <Widget>[
-        GlassTag(icon: Icons.smartphone_rounded, label: 'Camara movil'),
-        GlassTag(icon: Icons.blur_on_rounded, label: 'Preview live'),
-      ],
     );
   }
 }

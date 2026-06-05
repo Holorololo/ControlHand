@@ -11,6 +11,7 @@ class BluetoothStatusPanel extends StatelessWidget {
     required this.onSelectBuzzerRealMode,
     required this.onSelectDevice,
     required this.onRefreshDevices,
+    this.developerMode = false,
     super.key,
   });
 
@@ -20,6 +21,7 @@ class BluetoothStatusPanel extends StatelessWidget {
   final VoidCallback onSelectBuzzerRealMode;
   final ValueChanged<String?> onSelectDevice;
   final VoidCallback onRefreshDevices;
+  final bool developerMode;
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +38,7 @@ class BluetoothStatusPanel extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Estado Bluetooth',
+                      'Bluetooth',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 10),
@@ -52,7 +54,7 @@ class BluetoothStatusPanel extends StatelessWidget {
                 children: <Widget>[
                   Expanded(
                     child: Text(
-                      'Estado Bluetooth',
+                      'Bluetooth',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium,
@@ -73,22 +75,23 @@ class BluetoothStatusPanel extends StatelessWidget {
             runSpacing: 10,
             children: <Widget>[
               StatusDotChip(
-                label: viewModel.transportModeLabel,
-                tone: viewModel.transportModeTone,
-              ),
-              StatusDotChip(
                 label: viewModel.outputModeLabel,
                 tone: viewModel.outputModeTone,
               ),
+              if (developerMode)
+                StatusDotChip(
+                  label: viewModel.transportModeLabel,
+                  tone: viewModel.transportModeTone,
+                ),
               if (viewModel.showManualBuzzerControl &&
                   !viewModel.isBuzzerOutputMode)
                 const StatusDotChip(
-                  label: 'Buzzer manual habilitado',
+                  label: 'Control manual listo',
                   tone: HomeTone.warn,
                 ),
               SoftChip(label: 'Ultimo comando ${viewModel.lastCommandLabel}'),
               SoftChip(label: 'Payload ${viewModel.lastPayloadLabel}'),
-              SoftChip(label: 'Conexion ${viewModel.connectedDeviceLabel}'),
+              SoftChip(label: 'Dispositivo ${viewModel.connectedDeviceLabel}'),
             ],
           ),
           const SizedBox(height: 14),
@@ -132,7 +135,9 @@ class BluetoothStatusPanel extends StatelessWidget {
             onChanged: viewModel.hasPairedDevices ? onSelectDevice : null,
             decoration: InputDecoration(
               labelText: 'Modulo HC-05 / HC-06',
-              helperText: viewModel.deviceSelectionHint,
+              helperText: developerMode
+                  ? viewModel.deviceSelectionHint
+                  : 'Elige tu modulo Bluetooth emparejado para enviar comandos al Arduino.',
             ),
           ),
           if (viewModel.deviceErrorLabel.isNotEmpty) ...<Widget>[
@@ -140,23 +145,25 @@ class BluetoothStatusPanel extends StatelessWidget {
             AlertStrip(message: viewModel.deviceErrorLabel),
           ],
           const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: <Widget>[
-              ChoiceChip(
-                label: const Text('Auto virtual'),
-                selected: !viewModel.isBuzzerOutputMode,
-                onSelected: (_) => onSelectAutoVirtualMode(),
-              ),
-              ChoiceChip(
-                label: const Text('Buzzer real'),
-                selected: viewModel.isBuzzerOutputMode,
-                onSelected: (_) => onSelectBuzzerRealMode(),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
+          if (developerMode) ...<Widget>[
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: <Widget>[
+                ChoiceChip(
+                  label: const Text('Auto virtual'),
+                  selected: !viewModel.isBuzzerOutputMode,
+                  onSelected: (_) => onSelectAutoVirtualMode(),
+                ),
+                ChoiceChip(
+                  label: const Text('Auto real'),
+                  selected: viewModel.isBuzzerOutputMode,
+                  onSelected: (_) => onSelectBuzzerRealMode(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+          ],
           OutlinedButton(
             onPressed: onToggleConnection,
             child: Text(viewModel.toggleActionLabel),

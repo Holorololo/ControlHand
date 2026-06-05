@@ -22,5 +22,9 @@ class PerformanceConfig {
 
   static const int previewImageCacheWidth = 720;
   static const int performanceLogSampleSize = 12;
+  static const bool enableOptimizedAnimations = true;
+  static const bool performanceMode = true;
+  static const int uiAnimationDurationMs = performanceMode ? 120 : 190;
+  static const int uiAnimationFastDurationMs = performanceMode ? 90 : 150;
   static const bool enableAnimatedCar = false;
 }

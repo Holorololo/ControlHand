@@ -60,8 +60,8 @@ void main() {
       services.polling.latestState.value = state;
       services.polling.lastPacketAt.value = state.timestamp;
 
-      expect(controller.handSummary, 'MANO ABIERTA');
-      expect(controller.movementLabel, 'Auto avanzando');
+      expect(controller.handSummary, 'Mano abierta');
+      expect(controller.movementLabel, 'Comando Adelante');
       expect(
         controller.cameraSummary,
         'Vista en vivo recibida desde Flask/OpenCV.',
@@ -85,8 +85,8 @@ void main() {
 
       services.polling.latestState.value = state;
 
-      expect(controller.handSummary, 'MANO CERRADA');
-      expect(controller.movementLabel, 'Auto detenido');
+      expect(controller.handSummary, 'Mano cerrada');
+      expect(controller.movementLabel, 'Comando Parar');
       expect(controller.cameraSummary, 'Detenido por gesto');
     });
 
@@ -107,7 +107,7 @@ void main() {
       Get.find<AutoStatePollingService>().latestState.value = state;
 
       expect(controller.handSummary, 'No se detecta mano.');
-      expect(controller.movementLabel, 'Auto detenido');
+      expect(controller.movementLabel, 'Comando Parar');
       expect(controller.statePreview, contains('"hand_detected": false'));
     });
 
@@ -238,8 +238,31 @@ AutoState _buildState({
   return AutoState(
     timestamp: DateTime(2026, 6, 1, 12, 34, 56),
     handDetected: handDetected,
+    normalizedHandStatus: handDetected
+        ? (fingersUp >= 5 ? 'open' : (fingersUp <= 0 ? 'closed' : 'partial'))
+        : 'none',
     handState: handState,
     fingersUp: fingersUp,
+    command: !handDetected
+        ? 'stop'
+        : switch (fingersUp) {
+            0 => 'stop',
+            1 => 'left',
+            2 => 'right',
+            3 => 'horn',
+            4 => 'backward',
+            _ => 'forward',
+          },
+    payload: !handDetected
+        ? 'S'
+        : switch (fingersUp) {
+            0 => 'S',
+            1 => 'L',
+            2 => 'R',
+            3 => 'H',
+            4 => 'B',
+            _ => 'F',
+          },
     carMoving: carMoving,
     carX: carMoving ? 420 : 0,
     carY: 350,

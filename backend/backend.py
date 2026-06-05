@@ -37,8 +37,12 @@ COLOR_GRAY = (50, 50, 50)
 class AutoState:
     timestamp: float
     hand_detected: bool
+    hand_status: str
     hand_state: str
+    finger_count: int
     fingers_up: int
+    command: str
+    payload: str
     car_moving: bool
     car_x: int
     car_y: int
@@ -52,8 +56,12 @@ class AutoState:
         return cls(
             timestamp=time.time(),
             hand_detected=False,
+            hand_status="none",
             hand_state="Esperando camara",
+            finger_count=0,
             fingers_up=0,
+            command="stop",
+            payload="S",
             car_moving=False,
             car_x=AUTO_START_X,
             car_y=AUTO_Y,
@@ -89,8 +97,12 @@ class GestureAutoBackend:
 
         self._last_raw_state = None
         self._raw_state_count = 0
+        self._stable_hand_status = "none"
         self._stable_hand_state = "No se detecta mano"
+        self._stable_finger_count = 0
         self._stable_fingers_up = 0
+        self._stable_command = "stop"
+        self._stable_payload = "S"
         self._stable_car_moving = False
         self._stable_hand_detected = False
 
@@ -106,26 +118,111 @@ class GestureAutoBackend:
     def close(self):
         self.hands.close()
 
-    def contar_dedos(self, landmarks, hand_label):
-        dedos = []
+    def _distancia_2d(self, punto_a, punto_b):
+        return float(np.hypot(punto_a.x - punto_b.x, punto_a.y - punto_b.y))
 
-        if hand_label == "Right":
-            dedos.append(1 if landmarks[4].x < landmarks[3].x else 0)
-        else:
-            dedos.append(1 if landmarks[4].x > landmarks[3].x else 0)
+    def _dedo_extendido(self, landmarks, tip_idx, pip_idx, mcp_idx):
+        tip = landmarks[tip_idx]
+        pip = landmarks[pip_idx]
+        mcp = landmarks[mcp_idx]
+        return tip.y < (pip.y - 0.015) and pip.y < (mcp.y - 0.01)
 
-        dedos.append(1 if landmarks[8].y < landmarks[6].y else 0)
-        dedos.append(1 if landmarks[12].y < landmarks[10].y else 0)
-        dedos.append(1 if landmarks[16].y < landmarks[14].y else 0)
-        dedos.append(1 if landmarks[20].y < landmarks[18].y else 0)
+    def _pulgar_extendido(self, landmarks, handedness_label=None):
+        thumb_tip = landmarks[4]
+        thumb_ip = landmarks[3]
+        thumb_mcp = landmarks[2]
+        index_mcp = landmarks[5]
+        pinky_mcp = landmarks[17]
+        wrist = landmarks[0]
+        palm_width = max(0.05, abs(index_mcp.x - pinky_mcp.x))
+        tip_dist = self._distancia_2d(thumb_tip, wrist)
+        ip_dist = self._distancia_2d(thumb_ip, wrist)
+        tip_to_index = self._distancia_2d(thumb_tip, index_mcp)
+        ip_to_index = self._distancia_2d(thumb_ip, index_mcp)
+        label = (handedness_label or "").strip().lower()
+        direction = -1 if label != "left" else 1
+        horizontal_tip_extension = (thumb_tip.x - thumb_ip.x) * direction
+        horizontal_joint_extension = (thumb_ip.x - thumb_mcp.x) * direction
+        horizontal_extension = (
+            horizontal_tip_extension > palm_width * 0.20
+            and horizontal_joint_extension > palm_width * 0.07
+        )
+        tip_far_from_palm = (thumb_tip.x - wrist.x) * direction > palm_width * 0.26
+        tip_above_wrist = thumb_tip.y < wrist.y + 0.12
 
-        return dedos.count(1)
+        return (
+            horizontal_extension
+            and tip_far_from_palm
+            and tip_above_wrist
+            and tip_dist > (ip_dist * 1.15)
+            and tip_to_index > (ip_to_index * 1.05)
+        )
+
+    def contar_dedos(self, landmarks, handedness_label=None):
+        dedos = [
+            1 if self._pulgar_extendido(landmarks, handedness_label) else 0,
+            1 if self._dedo_extendido(landmarks, 8, 6, 5) else 0,
+            1 if self._dedo_extendido(landmarks, 12, 10, 9) else 0,
+            1 if self._dedo_extendido(landmarks, 16, 14, 13) else 0,
+            1 if self._dedo_extendido(landmarks, 20, 18, 17) else 0,
+        ]
+
+        return dedos.count(1), dedos
+
+    def _command_for_finger_count(self, finger_count):
+        if finger_count <= 0:
+            return "stop", "S"
+        if finger_count == 1:
+            return "left", "L"
+        if finger_count == 2:
+            return "right", "R"
+        if finger_count == 3:
+            return "horn", "H"
+        if finger_count == 4:
+            return "backward", "B"
+        return "forward", "F"
+
+    def _hand_status_for_finger_count(self, finger_count, hand_detected):
+        if not hand_detected:
+            return "none", "SIN MANO"
+        if finger_count <= 0:
+            return "closed", "MANO CERRADA"
+        if finger_count >= 5:
+            return "open", "MANO ABIERTA"
+        if finger_count == 1:
+            return "partial", "1 DEDO"
+        return "partial", f"{finger_count} DEDOS"
+
+    def _command_is_motion(self, command):
+        return command in {"forward", "backward", "left", "right"}
+
+    def _command_display_text(self, command):
+        mapping = {
+            "stop": "PARAR",
+            "left": "IZQUIERDA",
+            "right": "DERECHA",
+            "horn": "BOCINA",
+            "backward": "ATRAS",
+            "forward": "ADELANTE",
+        }
+        return mapping.get(command, command.upper())
+
+    def _command_color(self, command):
+        if command == "stop":
+            return COLOR_RED
+        if command == "horn":
+            return COLOR_YELLOW
+        return COLOR_GREEN
 
     def _raw_hand_state(self, results):
         state = {
             "hand_detected": False,
+            "hand_status": "none",
             "hand_state": "No se detecta mano",
+            "finger_count": 0,
             "fingers_up": 0,
+            "command": "stop",
+            "payload": "S",
             "car_moving": False,
         }
 
@@ -133,31 +230,41 @@ class GestureAutoBackend:
             return state
 
         hand_landmarks = results.multi_hand_landmarks[0]
-        handedness = results.multi_handedness[0]
-        hand_label = handedness.classification[0].label
-        fingers_up = self.contar_dedos(hand_landmarks.landmark, hand_label)
+        handedness_label = None
+        if results.multi_handedness:
+            handedness_label = (
+                results.multi_handedness[0].classification[0].label
+            )
 
-        if fingers_up >= 4:
-            hand_state = "MANO ABIERTA"
-            car_moving = True
-        elif fingers_up <= 1:
-            hand_state = "MANO CERRADA"
-            car_moving = False
-        else:
-            hand_state = "MANO SEMIABIERTA"
-            car_moving = False
+        fingers_up, _finger_states = self.contar_dedos(
+            hand_landmarks.landmark,
+            handedness_label,
+        )
+        command, payload = self._command_for_finger_count(fingers_up)
+        hand_status, hand_state = self._hand_status_for_finger_count(
+            fingers_up,
+            hand_detected=True,
+        )
+        car_moving = self._command_is_motion(command)
 
         state["hand_detected"] = True
+        state["hand_status"] = hand_status
         state["hand_state"] = hand_state
+        state["finger_count"] = fingers_up
         state["fingers_up"] = fingers_up
+        state["command"] = command
+        state["payload"] = payload
         state["car_moving"] = car_moving
         return state
 
     def _apply_stability(self, raw_state):
         raw_key = (
             raw_state["hand_detected"],
+            raw_state["hand_status"],
             raw_state["hand_state"],
-            raw_state["fingers_up"],
+            raw_state["finger_count"],
+            raw_state["command"],
+            raw_state["payload"],
             raw_state["car_moving"],
         )
 
@@ -169,14 +276,22 @@ class GestureAutoBackend:
 
         if self._raw_state_count >= self.stable_frames:
             self._stable_hand_detected = raw_state["hand_detected"]
+            self._stable_hand_status = raw_state["hand_status"]
             self._stable_hand_state = raw_state["hand_state"]
+            self._stable_finger_count = raw_state["finger_count"]
             self._stable_fingers_up = raw_state["fingers_up"]
+            self._stable_command = raw_state["command"]
+            self._stable_payload = raw_state["payload"]
             self._stable_car_moving = raw_state["car_moving"]
 
         return {
             "hand_detected": self._stable_hand_detected,
+            "hand_status": self._stable_hand_status,
             "hand_state": self._stable_hand_state,
+            "finger_count": self._stable_finger_count,
             "fingers_up": self._stable_fingers_up,
+            "command": self._stable_command,
+            "payload": self._stable_payload,
             "car_moving": self._stable_car_moving,
         }
 
@@ -230,12 +345,8 @@ class GestureAutoBackend:
 
         self.dibujar_auto(scene, state.car_x, state.car_y)
 
-        if state.car_moving:
-            texto_auto = "AUTO: AVANZANDO"
-            color_auto = COLOR_GREEN
-        else:
-            texto_auto = "AUTO: DETENIDO"
-            color_auto = COLOR_RED
+        texto_auto = f"AUTO: {self._command_display_text(state.command)}"
+        color_auto = self._command_color(state.command)
 
         cv2.putText(
             scene,
@@ -248,7 +359,7 @@ class GestureAutoBackend:
         )
         cv2.putText(
             scene,
-            f"Control: {state.hand_state}",
+            f"Control: {state.hand_state} | Payload {state.payload}",
             (30, 105),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.8,
@@ -257,7 +368,7 @@ class GestureAutoBackend:
         )
         cv2.putText(
             scene,
-            "Abre la mano para avanzar",
+            "0=S  1=L  2=R  3=H  4=B  5=F",
             (30, 150),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.7,
@@ -266,7 +377,7 @@ class GestureAutoBackend:
         )
         cv2.putText(
             scene,
-            "Cierra la mano para detener",
+            "Sin mano = S",
             (30, 185),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.7,
@@ -276,12 +387,8 @@ class GestureAutoBackend:
         return scene
 
     def dibujar_panel_mano(self, frame, state):
-        if state.car_moving:
-            texto_auto = "AUTO: AVANZANDO"
-            color_auto = COLOR_GREEN
-        else:
-            texto_auto = "AUTO: DETENIDO"
-            color_auto = COLOR_RED
+        texto_auto = f"COMANDO: {self._command_display_text(state.command)}"
+        color_auto = self._command_color(state.command)
 
         cv2.putText(
             frame,
@@ -294,7 +401,7 @@ class GestureAutoBackend:
         )
         cv2.putText(
             frame,
-            f"Dedos levantados: {state.fingers_up}",
+            f"Dedos levantados: {state.finger_count}",
             (30, 110),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.8,
@@ -303,7 +410,7 @@ class GestureAutoBackend:
         )
         cv2.putText(
             frame,
-            texto_auto,
+            f"{texto_auto} | Payload {state.payload}",
             (30, 160),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.9,
@@ -398,17 +505,25 @@ class GestureAutoBackend:
         raw_state = self._raw_hand_state(results)
         stable_state = self._apply_stability(raw_state)
 
-        if stable_state["car_moving"]:
+        if stable_state["command"] == "forward":
             self.auto_x += self.auto_speed
+        elif stable_state["command"] == "backward":
+            self.auto_x -= self.auto_speed
 
         if self.auto_x > self.camera_width:
             self.auto_x = -140
+        elif self.auto_x < -140:
+            self.auto_x = self.camera_width
 
         state = AutoState(
             timestamp=time.time(),
             hand_detected=stable_state["hand_detected"],
+            hand_status=stable_state["hand_status"],
             hand_state=stable_state["hand_state"],
+            finger_count=stable_state["finger_count"],
             fingers_up=stable_state["fingers_up"],
+            command=stable_state["command"],
+            payload=stable_state["payload"],
             car_moving=stable_state["car_moving"],
             car_x=self.auto_x,
             car_y=self.auto_y,

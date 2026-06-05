@@ -6,8 +6,11 @@ class AutoState {
   const AutoState({
     required this.timestamp,
     required this.handDetected,
+    this.normalizedHandStatus = 'none',
     required this.handState,
     required this.fingersUp,
+    this.command = 'stop',
+    this.payload = 'S',
     required this.carMoving,
     required this.carX,
     required this.carY,
@@ -25,8 +28,11 @@ class AutoState {
     return AutoState(
       timestamp: DateTime.fromMillisecondsSinceEpoch(0),
       handDetected: false,
+      normalizedHandStatus: 'none',
       handState: 'Esperando backend',
       fingersUp: 0,
+      command: 'stop',
+      payload: 'S',
       carMoving: false,
       carX: 50,
       carY: 350,
@@ -67,8 +73,11 @@ class AutoState {
     return AutoState(
       timestamp: snapshot.timestamp,
       handDetected: snapshot.handDetected,
+      normalizedHandStatus: snapshot.handStatus,
       handState: snapshot.handState,
-      fingersUp: snapshot.fingersUp,
+      fingersUp: snapshot.fingerCount,
+      command: snapshot.command,
+      payload: snapshot.payload,
       carMoving: snapshot.carMoving,
       carX: snapshot.carX,
       carY: snapshot.carY,
@@ -85,8 +94,11 @@ class AutoState {
 
   final DateTime timestamp;
   final bool handDetected;
+  final String normalizedHandStatus;
   final String handState;
   final int fingersUp;
+  final String command;
+  final String payload;
   final bool carMoving;
   final double carX;
   final double carY;
@@ -99,11 +111,16 @@ class AutoState {
   final int? cameraFrameWidth;
   final int? cameraFrameHeight;
 
+  int get fingerCount => fingersUp;
+
   AutoState copyWith({
     DateTime? timestamp,
     bool? handDetected,
+    String? normalizedHandStatus,
     String? handState,
     int? fingersUp,
+    String? command,
+    String? payload,
     bool? carMoving,
     double? carX,
     double? carY,
@@ -120,8 +137,11 @@ class AutoState {
     return AutoState(
       timestamp: timestamp ?? this.timestamp,
       handDetected: handDetected ?? this.handDetected,
+      normalizedHandStatus: normalizedHandStatus ?? this.normalizedHandStatus,
       handState: handState ?? this.handState,
       fingersUp: fingersUp ?? this.fingersUp,
+      command: command ?? this.command,
+      payload: payload ?? this.payload,
       carMoving: carMoving ?? this.carMoving,
       carX: carX ?? this.carX,
       carY: carY ?? this.carY,
@@ -166,8 +186,12 @@ class AutoState {
     return <String, dynamic>{
       'timestamp': timestamp.toIso8601String(),
       'hand_detected': handDetected,
+      'hand_status': normalizedHandStatus,
       'hand_state': handState,
+      'finger_count': fingerCount,
       'fingers_up': fingersUp,
+      'command': command,
+      'payload': payload,
       'car_moving': carMoving,
       'car_x': carX,
       'car_y': carY,

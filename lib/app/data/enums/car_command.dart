@@ -1,1 +1,1 @@
-enum CarCommand { forward, stop, left, right, backward }
+enum CarCommand { stop, forward, backward, left, right, horn }

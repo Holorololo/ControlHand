@@ -45,38 +45,30 @@ class DesktopHomeLayout extends StatelessWidget {
                         ? Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              SizedBox(
-                                width: 380,
-                                child: _ControlCenterBody(
-                                  controller: controller,
-                                  hostTextController:
-                                      controller.hostTextController,
-                                  portTextController:
-                                      controller.portTextController,
-                                  onToggleConnection: () {
-                                    controller.toggleConnection();
-                                  },
-                                  onReconnect: () {
-                                    controller.connect();
-                                  },
-                                  onRestartBackend: () {
-                                    controller.restartManagedBackend();
-                                  },
-                                  includeRemotePreview: false,
-                                ),
-                              ),
-                              const SizedBox(width: 24),
                               Expanded(
                                 child: Column(
                                   children: <Widget>[
                                     _DesktopHero(controller: controller),
                                     const SizedBox(height: 24),
-                                    _ReactiveProcessedPreviewPanel(
+                                    _ReactiveCarStatusPanel(
                                       controller: controller,
                                     ),
                                     const SizedBox(height: 24),
-                                    _ReactiveCarStatusPanel(
+                                    _ControlCenterBody(
                                       controller: controller,
+                                      hostTextController:
+                                          controller.hostTextController,
+                                      portTextController:
+                                          controller.portTextController,
+                                      onToggleConnection: () {
+                                        controller.toggleConnection();
+                                      },
+                                      onReconnect: () {
+                                        controller.connect();
+                                      },
+                                      onRestartBackend: () {
+                                        controller.restartManagedBackend();
+                                      },
                                     ),
                                   ],
                                 ),
@@ -128,17 +120,32 @@ class _DesktopHero extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const BrandCluster(compact: false),
+          GestureDetector(
+            onLongPress: controller.canUseDeveloperMode
+                ? () {
+                    controller.toggleDeveloperMode();
+                    Get.snackbar(
+                      'Modo desarrollador',
+                      controller.isDeveloperModeEnabled.value
+                          ? 'Se activaron los paneles tecnicos.'
+                          : 'Se ocultaron los paneles tecnicos.',
+                      snackPosition: SnackPosition.BOTTOM,
+                      margin: const EdgeInsets.all(16),
+                    );
+                  }
+                : null,
+            child: const BrandCluster(compact: false),
+          ),
           const SizedBox(height: 18),
           Text(
-            'Control remoto con estetica cyberpunk y prioridad movil.',
+            'Demo final centrada en camara, deteccion por dedos y control del auto.',
             style: Theme.of(
               context,
             ).textTheme.headlineLarge?.copyWith(fontSize: 32),
           ),
           const SizedBox(height: 12),
           Text(
-            'Flutter ahora separa el arranque ligero de la camara local del panel avanzado, para bajar consumo y dejar el backend remoto como una capa opcional.',
+            'La app conecta automaticamente con el backend, calcula dedos levantados y deja Bluetooth listo para enviar S, L, R, H, B y F al Arduino.',
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: 20),
@@ -157,7 +164,6 @@ class _ControlCenterBody extends StatelessWidget {
     required this.onToggleConnection,
     required this.onReconnect,
     required this.onRestartBackend,
-    this.includeRemotePreview = true,
   });
 
   final HomeController controller;
@@ -166,86 +172,87 @@ class _ControlCenterBody extends StatelessWidget {
   final VoidCallback onToggleConnection;
   final VoidCallback onReconnect;
   final VoidCallback onRestartBackend;
-  final bool includeRemotePreview;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: <Widget>[
-        Obx(() {
-          final connectionViewModel = HomePresentationMapper.mapConnection(
-            controller: controller,
-          );
-          return ConnectionPanel(
+    return Obx(() {
+      final developerMode = controller.isDeveloperModeEnabled.value;
+      final bluetoothStatusViewModel =
+          HomePresentationMapper.mapBluetoothStatus(controller: controller);
+      final children = <Widget>[
+        CarCommandPanel(
+          bluetoothStatusViewModel: bluetoothStatusViewModel,
+          activeCommand: controller.lastBluetoothCommand.value,
+          activePayload: controller.lastBluetoothPayload.value,
+          onToggleBluetoothConnection: () {
+            controller.toggleBluetoothConnection();
+          },
+          onSelectAutoVirtualMode: () {
+            controller.enableAutoVirtualBluetoothMode();
+          },
+          onSelectBuzzerRealMode: () {
+            controller.enableBuzzerRealBluetoothMode();
+          },
+          onSelectBluetoothDevice: (address) {
+            controller.selectBluetoothDevice(address);
+          },
+          onRefreshBluetoothDevices: () {
+            controller.refreshPairedBluetoothDevices();
+          },
+          onForward: () {
+            controller.sendForward();
+          },
+          onStop: () {
+            controller.sendStop();
+          },
+          onLeft: () {
+            controller.sendLeft();
+          },
+          onRight: () {
+            controller.sendRight();
+          },
+          onBackward: () {
+            controller.sendBackward();
+          },
+          onHorn: () {
+            controller.sendHorn();
+          },
+          developerMode: developerMode,
+        ),
+      ];
+
+      if (developerMode) {
+        final connectionViewModel = HomePresentationMapper.mapConnection(
+          controller: controller,
+        );
+        final backendStatusViewModel = HomePresentationMapper.mapBackend(
+          controller: controller,
+        );
+
+        children.addAll(<Widget>[
+          const SizedBox(height: 18),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text('Modo desarrollador'),
+          ),
+          const SizedBox(height: 12),
+          ConnectionPanel(
             viewModel: connectionViewModel,
             hostTextController: hostTextController,
             portTextController: portTextController,
             onToggleConnection: onToggleConnection,
             onReconnect: onReconnect,
             onRestartBackend: onRestartBackend,
-          );
-        }),
-        const SizedBox(height: 18),
-        if (includeRemotePreview) ...<Widget>[
+          ),
+          const SizedBox(height: 18),
           _ReactiveProcessedPreviewPanel(controller: controller),
           const SizedBox(height: 18),
-          _ReactiveCarStatusPanel(controller: controller),
-          const SizedBox(height: 18),
-        ],
-        Obx(() {
-          final bluetoothStatusViewModel =
-              HomePresentationMapper.mapBluetoothStatus(controller: controller);
-          return CarCommandPanel(
-            bluetoothStatusViewModel: bluetoothStatusViewModel,
-            activeCommand: controller.lastBluetoothCommand.value,
-            activeBuzzerCommand: controller.lastBluetoothBuzzerCommand.value,
-            onToggleBluetoothConnection: () {
-              controller.toggleBluetoothConnection();
-            },
-            onSelectAutoVirtualMode: () {
-              controller.enableAutoVirtualBluetoothMode();
-            },
-            onSelectBuzzerRealMode: () {
-              controller.enableBuzzerRealBluetoothMode();
-            },
-            onSelectBluetoothDevice: (address) {
-              controller.selectBluetoothDevice(address);
-            },
-            onRefreshBluetoothDevices: () {
-              controller.refreshPairedBluetoothDevices();
-            },
-            onForward: () {
-              controller.sendForward();
-            },
-            onStop: () {
-              controller.sendStop();
-            },
-            onLeft: () {
-              controller.sendLeft();
-            },
-            onRight: () {
-              controller.sendRight();
-            },
-            onBackward: () {
-              controller.sendBackward();
-            },
-            onBuzzerOn: () {
-              controller.sendBuzzerOn();
-            },
-            onBuzzerOff: () {
-              controller.sendBuzzerOff();
-            },
-          );
-        }),
-        const SizedBox(height: 18),
-        Obx(() {
-          final backendStatusViewModel = HomePresentationMapper.mapBackend(
-            controller: controller,
-          );
-          return BackendStatusPanel(viewModel: backendStatusViewModel);
-        }),
-      ],
-    );
+          BackendStatusPanel(viewModel: backendStatusViewModel),
+        ]);
+      }
+
+      return Column(children: children);
+    });
   }
 }
 
@@ -267,14 +274,10 @@ class _ReactiveDesktopHeroChips extends StatelessWidget {
         runSpacing: 10,
         children: <Widget>[
           StatusDotChip(
-            label: connectionViewModel.statusLabel,
+            label: controller.demoBackendStatusLabel,
             tone: connectionViewModel.statusTone,
           ),
-          StatusDotChip(
-            label: connectionViewModel.backendStatusLabel,
-            tone: connectionViewModel.backendStatusTone,
-          ),
-          SoftChip(label: connectionViewModel.endpointLabel),
+          SoftChip(label: controller.demoBackendStatusMessage),
           SoftChip(label: 'Ultimo paquete $packetLabel'),
         ],
       );

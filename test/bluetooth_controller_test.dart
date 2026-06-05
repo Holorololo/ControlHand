@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 
 import 'package:movilcontrol/app/data/enums/bluetooth_output_mode.dart';
-import 'package:movilcontrol/app/data/enums/buzzer_command.dart';
 import 'package:movilcontrol/app/data/enums/car_command.dart';
 import 'package:movilcontrol/app/data/models/auto_state.dart';
 import 'package:movilcontrol/app/modules/home/controllers/bluetooth_controller.dart';
@@ -20,7 +19,7 @@ void main() {
   tearDown(Get.reset);
 
   group('BluetoothController', () {
-    test('stores last command and payload after sending', () async {
+    test('stores last command and payload after manual send', () async {
       final service = MockBluetoothCommandService();
       final controller = BluetoothController(
         bluetoothService: service,
@@ -38,7 +37,7 @@ void main() {
     });
 
     test(
-      'does not resend duplicated commands when hand status stays equal',
+      'maps finger count 1 to left and finger count 4 to backward',
       () async {
         final service = MockBluetoothCommandService();
         final controller = BluetoothController(
@@ -48,12 +47,62 @@ void main() {
         );
 
         await controller.connect();
-        await controller.sendCommandFromHandStatus('MANO ABIERTA');
-        await controller.sendCommandFromHandStatus('MANO ABIERTA');
+        await controller.sendCommandFromHandStatus(
+          'partial',
+          handDetected: true,
+          fingerCount: 1,
+          backendCommand: 'left',
+          payload: 'L',
+        );
+        await controller.sendCommandFromHandStatus(
+          'partial',
+          handDetected: true,
+          fingerCount: 4,
+          backendCommand: 'backward',
+          payload: 'B',
+        );
+
+        expect(service.sendCallCount, 2);
+        expect(controller.lastCommand.value, CarCommand.backward);
+        expect(controller.lastPayload.value, 'B');
+      },
+    );
+
+    test(
+      'does not resend duplicated automatic commands for the same state',
+      () async {
+        final service = MockBluetoothCommandService();
+        final controller = BluetoothController(
+          bluetoothService: service,
+          enableStateSync: false,
+          startConnected: false,
+        );
+
+        await controller.connect();
+        await controller.sendCommandFromHandStatus(
+          'open',
+          handDetected: true,
+          fingerCount: 5,
+          backendCommand: 'forward',
+          payload: 'F',
+        );
+        await controller.sendCommandFromHandStatus(
+          'open',
+          handDetected: true,
+          fingerCount: 5,
+          backendCommand: 'forward',
+          payload: 'F',
+        );
 
         expect(service.sendCallCount, 1);
 
-        await controller.sendCommandFromHandStatus('MANO CERRADA');
+        await controller.sendCommandFromHandStatus(
+          'closed',
+          handDetected: true,
+          fingerCount: 0,
+          backendCommand: 'stop',
+          payload: 'S',
+        );
 
         expect(service.sendCallCount, 2);
         expect(controller.lastCommand.value, CarCommand.stop);
@@ -61,96 +110,69 @@ void main() {
       },
     );
 
-    test('sends buzzer on when hand is closed in buzzer mode', () async {
+    test('horn payload H is sent once when 3 fingers stay stable', () async {
       final service = MockBluetoothCommandService();
+      final polling = FakeAutoStatePollingService();
       final controller = BluetoothController(
         bluetoothService: service,
-        enableStateSync: false,
+        pollingService: polling,
         startConnected: false,
+        enableStateSync: true,
         initialOutputMode: BluetoothOutputMode.buzzerReal,
       );
 
+      controller.onInit();
       await controller.connect();
       controller.enableBuzzerRealMode();
-      await controller.sendBuzzerCommandFromHandStatus('MANO CERRADA');
 
-      expect(controller.lastBuzzerCommand.value, BuzzerCommand.on);
-      expect(controller.lastCommand.value, isNull);
-      expect(controller.lastPayload.value, '1');
-      expect(service.lastCommand, '1');
-    });
-
-    test('sends buzzer off when hand is open in buzzer mode', () async {
-      final service = MockBluetoothCommandService();
-      final controller = BluetoothController(
-        bluetoothService: service,
-        enableStateSync: false,
-        startConnected: false,
-        initialOutputMode: BluetoothOutputMode.buzzerReal,
+      polling.latestState.value = _buildState(
+        handDetected: true,
+        handStatus: 'partial',
+        handState: '3 DEDOS',
+        fingersUp: 3,
+        command: 'horn',
+        payload: 'H',
+        carMoving: false,
       );
+      await Future<void>.delayed(Duration.zero);
 
-      await controller.connect();
-      controller.enableBuzzerRealMode();
-      await controller.sendBuzzerCommandFromHandStatus('MANO ABIERTA');
-
-      expect(controller.lastBuzzerCommand.value, BuzzerCommand.off);
-      expect(controller.lastPayload.value, '0');
-      expect(service.lastCommand, '0');
-    });
-
-    test('sends buzzer off when no hand is detected in buzzer mode', () async {
-      final service = MockBluetoothCommandService();
-      final controller = BluetoothController(
-        bluetoothService: service,
-        enableStateSync: false,
-        startConnected: false,
-        initialOutputMode: BluetoothOutputMode.buzzerReal,
+      polling.latestState.value = _buildState(
+        handDetected: true,
+        handStatus: 'partial',
+        handState: '3 DEDOS',
+        fingersUp: 3,
+        command: 'horn',
+        payload: 'H',
+        carMoving: false,
       );
-
-      await controller.connect();
-      controller.enableBuzzerRealMode();
-      await controller.sendBuzzerCommandFromHandStatus('none');
-
-      expect(controller.lastBuzzerCommand.value, BuzzerCommand.off);
-      expect(controller.lastPayload.value, '0');
-      expect(service.lastCommand, '0');
-    });
-
-    test('does not resend duplicated buzzer payloads', () async {
-      final service = MockBluetoothCommandService();
-      final controller = BluetoothController(
-        bluetoothService: service,
-        enableStateSync: false,
-        startConnected: false,
-        initialOutputMode: BluetoothOutputMode.buzzerReal,
-      );
-
-      await controller.connect();
-      controller.enableBuzzerRealMode();
-      await controller.sendBuzzerCommandFromHandStatus('MANO CERRADA');
-      await controller.sendBuzzerCommandFromHandStatus('MANO CERRADA');
+      await Future<void>.delayed(Duration.zero);
 
       expect(service.sendCallCount, 1);
-      expect(controller.lastPayload.value, '1');
+      expect(controller.lastCommand.value, CarCommand.horn);
+      expect(controller.lastPayload.value, 'H');
+      controller.onClose();
     });
 
-    test('does not resend duplicated buzzer off payloads', () async {
-      final service = MockBluetoothCommandService();
-      final controller = BluetoothController(
-        bluetoothService: service,
-        enableStateSync: false,
-        startConnected: false,
-        initialOutputMode: BluetoothOutputMode.buzzerReal,
-      );
+    test(
+      'manual horn can be resent after debounce without spamming instantly',
+      () async {
+        final service = MockBluetoothCommandService();
+        final controller = BluetoothController(
+          bluetoothService: service,
+          enableStateSync: false,
+          startConnected: false,
+        );
 
-      await controller.connect();
-      controller.enableBuzzerRealMode();
-      await controller.sendBuzzerCommandFromHandStatus('MANO ABIERTA');
-      await controller.sendBuzzerCommandFromHandStatus('MANO ABIERTA');
+        await controller.connect();
+        await controller.sendHorn();
+        await controller.sendHorn();
+        await Future<void>.delayed(const Duration(milliseconds: 220));
+        await controller.sendHorn();
 
-      expect(service.sendCallCount, 1);
-      expect(controller.lastPayload.value, '0');
-    });
+        expect(service.sendCallCount, 2);
+        expect(controller.lastPayload.value, 'H');
+      },
+    );
 
     test('loads paired devices and selects the first one by default', () async {
       final service = MockBluetoothCommandService()
@@ -194,79 +216,17 @@ void main() {
     });
 
     test(
-      'enables manual buzzer control after backend reports an open hand',
-      () async {
-        final service = MockBluetoothCommandService();
-        final polling = FakeAutoStatePollingService();
-        final controller = BluetoothController(
-          bluetoothService: service,
-          pollingService: polling,
-          startConnected: false,
-          enableStateSync: true,
-        );
-
-        controller.onInit();
-        expect(controller.isManualBuzzerControlEnabled.value, isFalse);
-        expect(controller.outputMode.value, BluetoothOutputMode.autoVirtual);
-
-        polling.latestState.value = _buildState(
-          handDetected: true,
-          handState: 'MANO ABIERTA',
-          fingersUp: 5,
-          carMoving: true,
-        );
-        await Future<void>.delayed(Duration.zero);
-
-        expect(controller.isManualBuzzerControlEnabled.value, isTrue);
-        expect(controller.outputMode.value, BluetoothOutputMode.autoVirtual);
-
-        controller.enableAutoVirtualMode();
-        expect(controller.isManualBuzzerControlEnabled.value, isFalse);
-
-        polling.latestState.value = _buildState(
-          handDetected: true,
-          handState: 'MANO ABIERTA',
-          fingersUp: 5,
-          carMoving: true,
-        );
-        await Future<void>.delayed(Duration.zero);
-
-        expect(controller.isManualBuzzerControlEnabled.value, isFalse);
-
-        polling.latestState.value = _buildState(
-          handDetected: true,
-          handState: 'MANO CERRADA',
-          fingersUp: 0,
-          carMoving: false,
-        );
-        await Future<void>.delayed(Duration.zero);
-
-        polling.latestState.value = _buildState(
-          handDetected: true,
-          handState: 'MANO ABIERTA',
-          fingersUp: 5,
-          carMoving: true,
-        );
-        await Future<void>.delayed(Duration.zero);
-
-        expect(controller.isManualBuzzerControlEnabled.value, isTrue);
-        controller.onClose();
-      },
-    );
-
-    test(
-      'manual buzzer buttons do not send when bluetooth is disconnected',
+      'manual commands do not send when bluetooth is disconnected',
       () async {
         final service = MockBluetoothCommandService();
         final controller = BluetoothController(
           bluetoothService: service,
           enableStateSync: false,
           startConnected: false,
-          initialOutputMode: BluetoothOutputMode.buzzerReal,
         );
 
-        await controller.sendBuzzerOn();
-        await controller.sendBuzzerOff();
+        await controller.sendForward();
+        await controller.sendHorn();
 
         expect(service.sendCallCount, 0);
         expect(
@@ -293,74 +253,11 @@ void main() {
         polling.status.value = SocketConnectionStatus.disconnected;
         polling.errorMessage.value = 'Backend caido';
 
-        await controller.sendBuzzerOn();
+        await controller.sendForward();
 
         expect(controller.isConnected.value, isTrue);
         expect(service.sendCallCount, 1);
-        expect(service.lastCommand, '1');
-        controller.onClose();
-      },
-    );
-
-    test(
-      'bluetooth disconnected state does not break backend state flow',
-      () async {
-        final service = MockBluetoothCommandService();
-        final polling = FakeAutoStatePollingService();
-        final controller = BluetoothController(
-          bluetoothService: service,
-          pollingService: polling,
-          startConnected: false,
-          enableStateSync: true,
-        );
-
-        controller.onInit();
-        polling.status.value = SocketConnectionStatus.connected;
-        polling.latestState.value = _buildState(
-          handDetected: true,
-          handState: 'MANO ABIERTA',
-          fingersUp: 5,
-          carMoving: true,
-        );
-        await Future<void>.delayed(Duration.zero);
-
-        expect(polling.status.value, SocketConnectionStatus.connected);
-        expect(controller.isManualBuzzerControlEnabled.value, isTrue);
-        expect(service.sendCallCount, 0);
-        controller.onClose();
-      },
-    );
-
-    test(
-      'sendCommand failure does not break backend hand-state flow',
-      () async {
-        final service = _SlowFailingBluetoothService();
-        final polling = FakeAutoStatePollingService();
-        final controller = BluetoothController(
-          bluetoothService: service,
-          pollingService: polling,
-          startConnected: false,
-          enableStateSync: true,
-        );
-
-        controller.onInit();
-        await controller.connect();
-
-        polling.latestState.value = _buildState(
-          handDetected: true,
-          handState: 'MANO ABIERTA',
-          fingersUp: 5,
-          carMoving: true,
-        );
-        await Future<void>.delayed(const Duration(milliseconds: 80));
-
-        expect(controller.isManualBuzzerControlEnabled.value, isTrue);
-        expect(
-          controller.errorMessage.value,
-          contains('Simulated send failure'),
-        );
-        expect(polling.latestState.value!.handState, 'MANO ABIERTA');
-        expect(polling.latestState.value!.carMoving, isTrue);
+        expect(service.lastCommand, 'F');
         controller.onClose();
       },
     );
@@ -369,15 +266,21 @@ void main() {
 
 AutoState _buildState({
   required bool handDetected,
+  required String handStatus,
   required String handState,
   required int fingersUp,
+  required String command,
+  required String payload,
   required bool carMoving,
 }) {
   return AutoState(
-    timestamp: DateTime(2026, 6, 4, 12, 0),
+    timestamp: DateTime(2026, 6, 5, 12, 0),
     handDetected: handDetected,
+    normalizedHandStatus: handStatus,
     handState: handState,
     fingersUp: fingersUp,
+    command: command,
+    payload: payload,
     carMoving: carMoving,
     carX: carMoving ? 420 : 0,
     carY: 350,
@@ -389,63 +292,4 @@ AutoState _buildState({
     cameraFrameWidth: null,
     cameraFrameHeight: null,
   );
-}
-
-class _SlowFailingBluetoothService implements BluetoothCommandService {
-  bool _isConnected = false;
-  String _lastError = '';
-  String _lastCommand = '';
-
-  @override
-  String? get connectedDeviceAddress => 'AA:BB:CC:DD:EE:FF';
-
-  @override
-  String? get connectedDeviceName => 'HC-05 Test';
-
-  @override
-  bool get isConnected => _isConnected;
-
-  @override
-  bool get isSupported => true;
-
-  @override
-  String get lastCommand => _lastCommand;
-
-  @override
-  Duration? get lastConnectDuration => const Duration(milliseconds: 20);
-
-  @override
-  String get lastError => _lastError;
-
-  @override
-  Duration? get lastSendDuration => const Duration(milliseconds: 25);
-
-  @override
-  DateTime? get permissionRequestedAt => null;
-
-  @override
-  Future<void> connect({String? address}) async {
-    _isConnected = true;
-    _lastError = '';
-  }
-
-  @override
-  Future<void> disconnect() async {
-    _isConnected = false;
-  }
-
-  @override
-  Future<List<BluetoothDeviceInfo>> getPairedDevices() async {
-    return const <BluetoothDeviceInfo>[
-      BluetoothDeviceInfo(name: 'HC-05 Test', address: 'AA:BB:CC:DD:EE:FF'),
-    ];
-  }
-
-  @override
-  Future<void> sendCommand(String payload) async {
-    await Future<void>.delayed(const Duration(milliseconds: 25));
-    _lastCommand = payload;
-    _lastError = 'Simulated send failure';
-    throw const BluetoothCommandException('Simulated send failure');
-  }
 }

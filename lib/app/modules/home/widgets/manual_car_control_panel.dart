@@ -13,6 +13,8 @@ class ManualCarControlPanel extends StatelessWidget {
     required this.onLeft,
     required this.onRight,
     required this.onBackward,
+    required this.onHorn,
+    this.helperMessage = '',
     super.key,
   });
 
@@ -23,6 +25,8 @@ class ManualCarControlPanel extends StatelessWidget {
   final VoidCallback onLeft;
   final VoidCallback onRight;
   final VoidCallback onBackward;
+  final VoidCallback onHorn;
+  final String helperMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +38,15 @@ class ManualCarControlPanel extends StatelessWidget {
             'Control manual',
             style: Theme.of(context).textTheme.titleMedium,
           ),
+          if (helperMessage.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 6),
+            Text(
+              helperMessage,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
           const SizedBox(height: 12),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -47,6 +60,13 @@ class ManualCarControlPanel extends StatelessWidget {
                 children: <Widget>[
                   _CommandButton(
                     width: buttonWidth,
+                    command: CarCommand.stop,
+                    activeCommand: activeCommand,
+                    enabled: isConnected,
+                    onPressed: onStop,
+                  ),
+                  _CommandButton(
+                    width: buttonWidth,
                     command: CarCommand.forward,
                     activeCommand: activeCommand,
                     enabled: isConnected,
@@ -54,10 +74,10 @@ class ManualCarControlPanel extends StatelessWidget {
                   ),
                   _CommandButton(
                     width: buttonWidth,
-                    command: CarCommand.stop,
+                    command: CarCommand.backward,
                     activeCommand: activeCommand,
                     enabled: isConnected,
-                    onPressed: onStop,
+                    onPressed: onBackward,
                   ),
                   _CommandButton(
                     width: buttonWidth,
@@ -75,10 +95,10 @@ class ManualCarControlPanel extends StatelessWidget {
                   ),
                   _CommandButton(
                     width: buttonWidth,
-                    command: CarCommand.backward,
+                    command: CarCommand.horn,
                     activeCommand: activeCommand,
                     enabled: isConnected,
-                    onPressed: onBackward,
+                    onPressed: onHorn,
                   ),
                 ],
               );

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../data/enums/bluetooth_output_mode.dart';
-import '../../../data/enums/buzzer_command.dart';
 import '../../../data/enums/car_command.dart';
 import '../../../data/models/auto_state.dart';
 import '../../../services/auto_state_polling_service.dart';
@@ -37,6 +36,8 @@ class HomeController extends GetxController {
       _driveSessionController.mobileCameraInfoMessage;
   RxBool get isDiagnosticsVisible =>
       _driveSessionController.isDiagnosticsVisible;
+  RxBool get isDeveloperModeEnabled =>
+      _driveSessionController.isDeveloperModeEnabled;
   RxBool get isBluetoothConnected => _bluetoothController.isConnected;
   RxBool get isBluetoothMockMode => _bluetoothController.isMockMode;
   RxBool get isBluetoothLoadingDevices => _bluetoothController.isLoadingDevices;
@@ -45,8 +46,6 @@ class HomeController extends GetxController {
   Rx<BluetoothOutputMode> get bluetoothOutputMode =>
       _bluetoothController.outputMode;
   Rxn<CarCommand> get lastBluetoothCommand => _bluetoothController.lastCommand;
-  Rxn<BuzzerCommand> get lastBluetoothBuzzerCommand =>
-      _bluetoothController.lastBuzzerCommand;
   RxString get lastBluetoothCommandLabel =>
       _bluetoothController.lastCommandLabel;
   RxString get lastBluetoothPayload => _bluetoothController.lastPayload;
@@ -87,6 +86,7 @@ class HomeController extends GetxController {
   bool get showPhoneCameraPanel => _driveSessionController.showPhoneCameraPanel;
   bool get showImmersiveMobileHome =>
       _driveSessionController.showImmersiveMobileHome;
+  bool get canUseDeveloperMode => _driveSessionController.canUseDeveloperMode;
 
   String get backendCommand => _connectionController.backendCommand;
   String get endpointLabel => _connectionController.endpointLabel;
@@ -104,6 +104,10 @@ class HomeController extends GetxController {
   String get handSummary => _driveSessionController.handSummary;
   String get statePreview => _driveSessionController.statePreview;
   String get cameraSummary => _driveSessionController.cameraSummary;
+  String get demoBackendStatusLabel =>
+      _driveSessionController.demoBackendStatusLabel;
+  String get demoBackendStatusMessage =>
+      _driveSessionController.demoBackendStatusMessage;
   String get observabilitySummary => [
     _driveSessionController.pollingMetricsSummary,
     _driveSessionController.relayMetricsSummary,
@@ -142,9 +146,7 @@ class HomeController extends GetxController {
 
   Future<void> sendBackward() => _bluetoothController.sendBackward();
 
-  Future<void> sendBuzzerOn() => _bluetoothController.sendBuzzerOn();
-
-  Future<void> sendBuzzerOff() => _bluetoothController.sendBuzzerOff();
+  Future<void> sendHorn() => _bluetoothController.sendHorn();
 
   void enableAutoVirtualBluetoothMode() =>
       _bluetoothController.enableAutoVirtualMode();
@@ -160,6 +162,8 @@ class HomeController extends GetxController {
 
   Future<void> openControlCenter() =>
       _driveSessionController.openControlCenter();
+
+  void toggleDeveloperMode() => _driveSessionController.toggleDeveloperMode();
 
   void closeDiagnosticsPanel() =>
       _driveSessionController.closeDiagnosticsPanel();

@@ -31,7 +31,8 @@ void main() {
 
       expect(handStatus.summary, 'MANO ABIERTA');
       expect(handStatus.fingersValue, '5');
-      expect(handStatus.carValue, 'AVANZA');
+      expect(handStatus.commandValue, 'Adelante');
+      expect(handStatus.payloadValue, 'F');
       expect(handStatus.cameraTone, HomeTone.good);
     });
 
@@ -55,7 +56,8 @@ void main() {
 
       expect(handStatus.summary, 'MANO CERRADA');
       expect(handStatus.fingersValue, '0');
-      expect(handStatus.carValue, 'STOP');
+      expect(handStatus.commandValue, 'Parar');
+      expect(handStatus.payloadValue, 'S');
       expect(handStatus.detailMessage, 'Camara del celular lista');
       expect(handStatus.cameraTone, HomeTone.soft);
     });
@@ -78,7 +80,8 @@ void main() {
 
       expect(handStatus.summary, 'No se detecta mano.');
       expect(handStatus.fingersValue, '0');
-      expect(handStatus.carValue, 'STOP');
+      expect(handStatus.commandValue, 'Parar');
+      expect(handStatus.payloadValue, 'S');
     });
 
     test('maps moving car to the expected visual state', () {
@@ -99,10 +102,12 @@ void main() {
       final carStatus = mapper.carStatus;
 
       expect(carStatus.movementLabel, 'Auto avanzando');
-      expect(carStatus.statusLabel, 'GO');
+      expect(carStatus.statusLabel, 'F');
       expect(carStatus.statusTone, HomeTone.good);
       expect(carStatus.speedValue, '18');
       expect(carStatus.isMoving, isTrue);
+      expect(carStatus.commandLabel, 'Adelante');
+      expect(carStatus.payloadLabel, 'F');
       expect(carStatus.carProgress, greaterThan(0));
     });
 
@@ -128,6 +133,8 @@ void main() {
       expect(carStatus.statusLabel, 'STOP');
       expect(carStatus.statusTone, HomeTone.alert);
       expect(carStatus.errorMessage, 'Sin deteccion de mano');
+      expect(carStatus.commandLabel, 'Parar');
+      expect(carStatus.payloadLabel, 'S');
       expect(carStatus.isMoving, isFalse);
     });
 
@@ -282,8 +289,31 @@ AutoState _buildState({
   return AutoState(
     timestamp: DateTime(2026, 6, 1, 12, 0),
     handDetected: handDetected,
+    normalizedHandStatus: handDetected
+        ? (fingersUp >= 5 ? 'open' : (fingersUp <= 0 ? 'closed' : 'partial'))
+        : 'none',
     handState: handState,
     fingersUp: fingersUp,
+    command: !handDetected
+        ? 'stop'
+        : switch (fingersUp) {
+            0 => 'stop',
+            1 => 'left',
+            2 => 'right',
+            3 => 'horn',
+            4 => 'backward',
+            _ => 'forward',
+          },
+    payload: !handDetected
+        ? 'S'
+        : switch (fingersUp) {
+            0 => 'S',
+            1 => 'L',
+            2 => 'R',
+            3 => 'H',
+            4 => 'B',
+            _ => 'F',
+          },
     carMoving: carMoving,
     carX: carX,
     carY: 350,

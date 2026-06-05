@@ -1,3 +1,4 @@
+import '../../../data/mappers/car_command_mapper.dart';
 import '../../../data/models/auto_state.dart';
 import '../../../services/auto_state_polling_service.dart';
 import '../../../services/mobile_camera_relay_service.dart';
@@ -146,14 +147,16 @@ class HomePresentationMapper {
     required HomeController controller,
     required AutoState state,
   }) {
+    final command = CarCommandMapper.fromAutoState(state);
     return HandStatusViewModel(
       summary: controller.handSummary,
       cameraStatusLabel: controller.phoneCameraStatusLabel,
       cameraTone: cameraTone(controller.mobileCameraStatus.value),
       cameraSummary: controller.cameraSummary,
       mobileCameraInfoMessage: controller.mobileCameraInfoMessage.value,
-      fingersUp: state.fingersUp,
-      carMoving: state.carMoving,
+      fingerCount: state.fingerCount,
+      commandLabel: CarCommandMapper.toVisualText(command),
+      payloadLabel: state.payload,
       packetLabel: controller.packetLabel,
     );
   }
@@ -162,12 +165,15 @@ class HomePresentationMapper {
     required HomeController controller,
     required AutoState state,
   }) {
+    final command = CarCommandMapper.fromAutoState(state);
     return CarStatusViewModel(
       movementLabel: controller.movementLabel,
       carMoving: state.carMoving,
-      fingersUp: state.fingersUp,
+      fingerCount: state.fingerCount,
       speed: state.speed,
       handState: state.handState,
+      commandLabel: CarCommandMapper.toVisualText(command),
+      payloadLabel: state.payload,
       carProgress: state.carProgress,
       errorMessage: controller.errorMessage.value,
     );
@@ -253,25 +259,30 @@ class HomePresentationMapper {
   }
 
   HandStatusViewModel get handStatus {
+    final command = CarCommandMapper.fromAutoState(_input.state);
     return HandStatusViewModel(
       summary: _input.handSummary,
       cameraStatusLabel: _input.phoneCameraStatusLabel,
       cameraTone: cameraTone(_input.mobileCameraStatus),
       cameraSummary: _input.cameraSummary,
       mobileCameraInfoMessage: _input.mobileCameraInfoMessage,
-      fingersUp: _input.state.fingersUp,
-      carMoving: _input.state.carMoving,
+      fingerCount: _input.state.fingerCount,
+      commandLabel: CarCommandMapper.toVisualText(command),
+      payloadLabel: _input.state.payload,
       packetLabel: _input.packetLabel,
     );
   }
 
   CarStatusViewModel get carStatus {
+    final command = CarCommandMapper.fromAutoState(_input.state);
     return CarStatusViewModel(
       movementLabel: _input.movementLabel,
       carMoving: _input.state.carMoving,
-      fingersUp: _input.state.fingersUp,
+      fingerCount: _input.state.fingerCount,
       speed: _input.state.speed,
       handState: _input.state.handState,
+      commandLabel: CarCommandMapper.toVisualText(command),
+      payloadLabel: _input.state.payload,
       carProgress: _input.state.carProgress,
       errorMessage: _input.errorMessage,
     );

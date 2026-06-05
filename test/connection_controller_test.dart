@@ -139,6 +139,25 @@ void main() {
         expect(controller.connectionSectionTitle, 'Conexion remota');
       },
     );
+
+    test('auto connects on mobile when API_BASE_URL is configured', () async {
+      final services = _registerServices();
+      services.backend.canAutoStartValue = false;
+      final controller = TestConnectionController(
+        autoConnect: true,
+        isMobileClientOverride: true,
+        apiBaseUrlOverride: 'http://192.168.0.20:5050',
+      );
+
+      controller.initializeConnectionFlow();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.hostTextController.text, 'http://192.168.0.20:5050');
+      expect(controller.portTextController.text, '5050');
+      expect(services.polling.connectCallCount, 1);
+      expect(services.polling.lastConnectHost, 'http://192.168.0.20:5050');
+      expect(services.polling.lastConnectPort, 5050);
+    });
   });
 }
 

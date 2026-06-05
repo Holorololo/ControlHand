@@ -362,7 +362,10 @@ class AutoStatePollingService extends GetxService {
     }
 
     return previous.handDetected != next.handDetected ||
+        previous.normalizedHandStatus != next.normalizedHandStatus ||
         previous.handState != next.handState ||
+        previous.command != next.command ||
+        previous.payload != next.payload ||
         previous.fingersUp != next.fingersUp ||
         previous.carMoving != next.carMoving ||
         previous.carX != next.carX ||

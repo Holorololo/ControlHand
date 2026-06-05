@@ -7,8 +7,6 @@ import 'backend_status_panel.dart';
 import 'car_command_panel.dart';
 import 'car_status_panel.dart';
 import 'connection_panel.dart';
-import 'control_buttons_panel.dart';
-import 'hand_status_panel.dart';
 import 'home_presentation_mapper.dart';
 import 'home_widget_support.dart';
 import 'mobile_preview_panel.dart';
@@ -76,9 +74,6 @@ class MobileHomeLayout extends StatelessWidget {
                     child: _MobileCommandDeck(
                       controller: controller,
                       onOpenPanel: () => _openControlCenter(context),
-                      onToggleConnection: () {
-                        controller.toggleConnection();
-                      },
                     ),
                   ),
                 ],
@@ -95,65 +90,62 @@ class _MobileCommandDeck extends StatelessWidget {
   const _MobileCommandDeck({
     required this.controller,
     required this.onOpenPanel,
-    required this.onToggleConnection,
   });
 
   final HomeController controller;
   final VoidCallback onOpenPanel;
-  final VoidCallback onToggleConnection;
 
   @override
   Widget build(BuildContext context) {
     return PanelShell(
       padding: const EdgeInsets.all(18),
       radius: 26,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final stacked = constraints.maxWidth < 360;
+      child: Obx(() {
+        final bluetoothStatusViewModel =
+            HomePresentationMapper.mapBluetoothStatus(controller: controller);
 
-              // Split the deck vertically on narrow phones to avoid overflow.
-              return stacked
-                  ? Column(
-                      children: <Widget>[
-                        _ReactiveHandMetricPanel(controller: controller),
-                        const SizedBox(height: 12),
-                        _ReactiveCarMetricPanel(controller: controller),
-                      ],
-                    )
-                  : Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: _ReactiveHandMetricPanel(
-                            controller: controller,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _ReactiveCarMetricPanel(
-                            controller: controller,
-                          ),
-                        ),
-                      ],
-                    );
-            },
-          ),
-          const SizedBox(height: 12),
-          Obx(() {
-            final connectionViewModel = HomePresentationMapper.mapConnection(
-              controller: controller,
-            );
-            return MobilePrimaryActionsPanel(
-              viewModel: connectionViewModel,
-              onToggleConnection: onToggleConnection,
-              onOpenPanel: onOpenPanel,
-            );
-          }),
-          _ReactiveCarAlertStrip(controller: controller),
-        ],
-      ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: <Widget>[
+                StatusDotChip(
+                  label: controller.demoBackendStatusLabel,
+                  tone: connectionTone(controller.connectionStatus.value),
+                ),
+                StatusDotChip(
+                  label: bluetoothStatusViewModel.connectionLabel,
+                  tone: bluetoothStatusViewModel.connectionTone,
+                ),
+                SoftChip(
+                  label: 'Payload ${bluetoothStatusViewModel.lastPayloadLabel}',
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              controller.demoBackendStatusMessage,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onOpenPanel,
+                icon: const Icon(Icons.bluetooth_searching_rounded),
+                label: const Text(
+                  'Bluetooth y control',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
+        );
+      }),
     );
   }
 }
@@ -253,93 +245,96 @@ class _ControlCenterBody extends StatelessWidget {
     return Column(
       children: <Widget>[
         Obx(() {
-          final connectionViewModel = HomePresentationMapper.mapConnection(
-            controller: controller,
-          );
-          return ConnectionPanel(
-            viewModel: connectionViewModel,
-            hostTextController: hostTextController,
-            portTextController: portTextController,
-            onToggleConnection: onToggleConnection,
-            onReconnect: onReconnect,
-            onRestartBackend: onRestartBackend,
-          );
-        }),
-        const SizedBox(height: 18),
-        Obx(() {
-          final state = controller.effectiveState;
-          final previewViewModel = HomePresentationMapper.mapProcessedPreview(
-            controller: controller,
-            state: state,
-          );
-          return ProcessedPreviewPanel(viewModel: previewViewModel);
-        }),
-        const SizedBox(height: 18),
-        Obx(() {
-          final state = controller.effectiveState;
-          final carStatusViewModel = HomePresentationMapper.mapCar(
-            controller: controller,
-            state: state,
-          );
+          final developerMode = controller.isDeveloperModeEnabled.value;
           final bluetoothStatusViewModel =
               HomePresentationMapper.mapBluetoothStatus(controller: controller);
-          return CarStatusPanel(
-            viewModel: carStatusViewModel,
-            bluetoothViewModel: bluetoothStatusViewModel,
-          );
-        }),
-        const SizedBox(height: 18),
-        Obx(() {
-          final bluetoothStatusViewModel =
-              HomePresentationMapper.mapBluetoothStatus(controller: controller);
-          return CarCommandPanel(
-            bluetoothStatusViewModel: bluetoothStatusViewModel,
-            activeCommand: controller.lastBluetoothCommand.value,
-            activeBuzzerCommand: controller.lastBluetoothBuzzerCommand.value,
-            onToggleBluetoothConnection: () {
-              controller.toggleBluetoothConnection();
-            },
-            onSelectAutoVirtualMode: () {
-              controller.enableAutoVirtualBluetoothMode();
-            },
-            onSelectBuzzerRealMode: () {
-              controller.enableBuzzerRealBluetoothMode();
-            },
-            onSelectBluetoothDevice: (address) {
-              controller.selectBluetoothDevice(address);
-            },
-            onRefreshBluetoothDevices: () {
-              controller.refreshPairedBluetoothDevices();
-            },
-            onForward: () {
-              controller.sendForward();
-            },
-            onStop: () {
-              controller.sendStop();
-            },
-            onLeft: () {
-              controller.sendLeft();
-            },
-            onRight: () {
-              controller.sendRight();
-            },
-            onBackward: () {
-              controller.sendBackward();
-            },
-            onBuzzerOn: () {
-              controller.sendBuzzerOn();
-            },
-            onBuzzerOff: () {
-              controller.sendBuzzerOff();
-            },
-          );
-        }),
-        const SizedBox(height: 18),
-        Obx(() {
-          final backendStatusViewModel = HomePresentationMapper.mapBackend(
-            controller: controller,
-          );
-          return BackendStatusPanel(viewModel: backendStatusViewModel);
+          final children = <Widget>[
+            CarCommandPanel(
+              bluetoothStatusViewModel: bluetoothStatusViewModel,
+              activeCommand: controller.lastBluetoothCommand.value,
+              activePayload: controller.lastBluetoothPayload.value,
+              onToggleBluetoothConnection: () {
+                controller.toggleBluetoothConnection();
+              },
+              onSelectAutoVirtualMode: () {
+                controller.enableAutoVirtualBluetoothMode();
+              },
+              onSelectBuzzerRealMode: () {
+                controller.enableBuzzerRealBluetoothMode();
+              },
+              onSelectBluetoothDevice: (address) {
+                controller.selectBluetoothDevice(address);
+              },
+              onRefreshBluetoothDevices: () {
+                controller.refreshPairedBluetoothDevices();
+              },
+              onForward: () {
+                controller.sendForward();
+              },
+              onStop: () {
+                controller.sendStop();
+              },
+              onLeft: () {
+                controller.sendLeft();
+              },
+              onRight: () {
+                controller.sendRight();
+              },
+              onBackward: () {
+                controller.sendBackward();
+              },
+              onHorn: () {
+                controller.sendHorn();
+              },
+              developerMode: developerMode,
+            ),
+          ];
+
+          if (developerMode) {
+            final connectionViewModel = HomePresentationMapper.mapConnection(
+              controller: controller,
+            );
+            final state = controller.effectiveState;
+            final previewViewModel = HomePresentationMapper.mapProcessedPreview(
+              controller: controller,
+              state: state,
+            );
+            final carStatusViewModel = HomePresentationMapper.mapCar(
+              controller: controller,
+              state: state,
+            );
+            final backendStatusViewModel = HomePresentationMapper.mapBackend(
+              controller: controller,
+            );
+
+            children.addAll(<Widget>[
+              const SizedBox(height: 18),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Modo desarrollador'),
+              ),
+              const SizedBox(height: 12),
+              ConnectionPanel(
+                viewModel: connectionViewModel,
+                hostTextController: hostTextController,
+                portTextController: portTextController,
+                onToggleConnection: onToggleConnection,
+                onReconnect: onReconnect,
+                onRestartBackend: onRestartBackend,
+              ),
+              const SizedBox(height: 18),
+              ProcessedPreviewPanel(viewModel: previewViewModel),
+              const SizedBox(height: 18),
+              CarStatusPanel(
+                viewModel: carStatusViewModel,
+                bluetoothViewModel: bluetoothStatusViewModel,
+              ),
+              const SizedBox(height: 18),
+              BackendStatusPanel(viewModel: backendStatusViewModel),
+            ]);
+          }
+
+          return Column(children: children);
         }),
       ],
     );
@@ -354,12 +349,9 @@ class _ReactiveConnectionStatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final connectionViewModel = HomePresentationMapper.mapConnection(
-        controller: controller,
-      );
       return StatusDotChip(
-        label: connectionViewModel.statusLabel,
-        tone: connectionViewModel.statusTone,
+        label: controller.demoBackendStatusLabel,
+        tone: connectionTone(controller.connectionStatus.value),
       );
     });
   }
@@ -390,70 +382,6 @@ class _ReactiveMobilePreview extends StatelessWidget {
   }
 }
 
-class _ReactiveHandMetricPanel extends StatelessWidget {
-  const _ReactiveHandMetricPanel({required this.controller});
-
-  final HomeController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final state = controller.effectiveState;
-      final handStatusViewModel = HomePresentationMapper.mapHand(
-        controller: controller,
-        state: state,
-      );
-      return HandStatusMetricPanel(viewModel: handStatusViewModel);
-    });
-  }
-}
-
-class _ReactiveCarMetricPanel extends StatelessWidget {
-  const _ReactiveCarMetricPanel({required this.controller});
-
-  final HomeController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final state = controller.effectiveState;
-      final carStatusViewModel = HomePresentationMapper.mapCar(
-        controller: controller,
-        state: state,
-      );
-      return CarStatusMetricPanel(viewModel: carStatusViewModel);
-    });
-  }
-}
-
-class _ReactiveCarAlertStrip extends StatelessWidget {
-  const _ReactiveCarAlertStrip({required this.controller});
-
-  final HomeController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final state = controller.effectiveState;
-      final carStatusViewModel = HomePresentationMapper.mapCar(
-        controller: controller,
-        state: state,
-      );
-
-      if (carStatusViewModel.errorMessage.isEmpty) {
-        return const SizedBox.shrink();
-      }
-
-      return Column(
-        children: <Widget>[
-          const SizedBox(height: 12),
-          AlertStrip(message: carStatusViewModel.errorMessage),
-        ],
-      );
-    });
-  }
-}
-
 class _MobileTopBar extends StatelessWidget {
   const _MobileTopBar({required this.controller, required this.onOpenPanel});
 
@@ -467,11 +395,24 @@ class _MobileTopBar extends StatelessWidget {
         final stacked = constraints.maxWidth < 380;
         final actionButton = IconButton.filledTonal(
           onPressed: onOpenPanel,
+          onLongPress: controller.canUseDeveloperMode
+              ? () {
+                  controller.toggleDeveloperMode();
+                  Get.snackbar(
+                    'Modo desarrollador',
+                    controller.isDeveloperModeEnabled.value
+                        ? 'Se activaron los paneles tecnicos.'
+                        : 'Se ocultaron los paneles tecnicos.',
+                    snackPosition: SnackPosition.BOTTOM,
+                    margin: const EdgeInsets.all(16),
+                  );
+                }
+              : null,
           style: IconButton.styleFrom(
             backgroundColor: AppTheme.panelStrong,
             foregroundColor: AppTheme.primarySoft,
           ),
-          icon: const Icon(Icons.tune_rounded),
+          icon: const Icon(Icons.bluetooth_audio_rounded),
         );
 
         if (stacked) {
