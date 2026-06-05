@@ -80,6 +80,12 @@ class BluetoothStatusPanel extends StatelessWidget {
                 label: viewModel.outputModeLabel,
                 tone: viewModel.outputModeTone,
               ),
+              if (viewModel.showManualBuzzerControl &&
+                  !viewModel.isBuzzerOutputMode)
+                const StatusDotChip(
+                  label: 'Buzzer manual habilitado',
+                  tone: HomeTone.warn,
+                ),
               SoftChip(label: 'Ultimo comando ${viewModel.lastCommandLabel}'),
               SoftChip(label: 'Payload ${viewModel.lastPayloadLabel}'),
               SoftChip(label: 'Conexion ${viewModel.connectedDeviceLabel}'),

@@ -40,6 +40,8 @@ class HomeController extends GetxController {
   RxBool get isBluetoothConnected => _bluetoothController.isConnected;
   RxBool get isBluetoothMockMode => _bluetoothController.isMockMode;
   RxBool get isBluetoothLoadingDevices => _bluetoothController.isLoadingDevices;
+  RxBool get isManualBuzzerControlEnabled =>
+      _bluetoothController.isManualBuzzerControlEnabled;
   Rx<BluetoothOutputMode> get bluetoothOutputMode =>
       _bluetoothController.outputMode;
   Rxn<CarCommand> get lastBluetoothCommand => _bluetoothController.lastCommand;

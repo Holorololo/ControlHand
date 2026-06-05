@@ -1,13 +1,23 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
 
 import 'package:movilcontrol/app/data/enums/bluetooth_output_mode.dart';
 import 'package:movilcontrol/app/data/enums/buzzer_command.dart';
 import 'package:movilcontrol/app/data/enums/car_command.dart';
+import 'package:movilcontrol/app/data/models/auto_state.dart';
 import 'package:movilcontrol/app/modules/home/controllers/bluetooth_controller.dart';
 import 'package:movilcontrol/app/services/bluetooth_command_service.dart';
 import 'package:movilcontrol/app/services/mock_bluetooth_command_service.dart';
 
+import 'test_helpers/fake_home_services.dart';
+
 void main() {
+  setUp(() {
+    Get.testMode = true;
+  });
+
+  tearDown(Get.reset);
+
   group('BluetoothController', () {
     test('stores last command and payload after sending', () async {
       final service = MockBluetoothCommandService();
@@ -163,5 +173,88 @@ void main() {
       expect(controller.connectedDeviceAddress.value, 'AA:BB:02');
       expect(controller.connectedDeviceName.value, 'HC-06 Taller');
     });
+
+    test(
+      'enables manual buzzer control after backend reports an open hand',
+      () async {
+        final service = MockBluetoothCommandService();
+        final polling = FakeAutoStatePollingService();
+        final controller = BluetoothController(
+          bluetoothService: service,
+          pollingService: polling,
+          startConnected: false,
+          enableStateSync: true,
+        );
+
+        controller.onInit();
+        expect(controller.isManualBuzzerControlEnabled.value, isFalse);
+
+        polling.latestState.value = _buildState(
+          handDetected: true,
+          handState: 'MANO ABIERTA',
+          fingersUp: 5,
+          carMoving: true,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(controller.isManualBuzzerControlEnabled.value, isTrue);
+
+        controller.enableAutoVirtualMode();
+        expect(controller.isManualBuzzerControlEnabled.value, isFalse);
+
+        polling.latestState.value = _buildState(
+          handDetected: true,
+          handState: 'MANO ABIERTA',
+          fingersUp: 5,
+          carMoving: true,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(controller.isManualBuzzerControlEnabled.value, isFalse);
+
+        polling.latestState.value = _buildState(
+          handDetected: true,
+          handState: 'MANO CERRADA',
+          fingersUp: 0,
+          carMoving: false,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        polling.latestState.value = _buildState(
+          handDetected: true,
+          handState: 'MANO ABIERTA',
+          fingersUp: 5,
+          carMoving: true,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(controller.isManualBuzzerControlEnabled.value, isTrue);
+        controller.onClose();
+      },
+    );
   });
+}
+
+AutoState _buildState({
+  required bool handDetected,
+  required String handState,
+  required int fingersUp,
+  required bool carMoving,
+}) {
+  return AutoState(
+    timestamp: DateTime(2026, 6, 4, 12, 0),
+    handDetected: handDetected,
+    handState: handState,
+    fingersUp: fingersUp,
+    carMoving: carMoving,
+    carX: carMoving ? 420 : 0,
+    carY: 350,
+    speed: carMoving ? 14 : 8,
+    backendReady: true,
+    backendMessage: 'Backend listo',
+    backendLastError: '',
+    previewBytes: null,
+    cameraFrameWidth: null,
+    cameraFrameHeight: null,
+  );
 }

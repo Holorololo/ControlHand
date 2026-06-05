@@ -70,7 +70,7 @@ class CarCommandPanel extends StatelessWidget {
             onRefreshDevices: onRefreshBluetoothDevices,
           ),
           const SizedBox(height: 16),
-          bluetoothStatusViewModel.isBuzzerOutputMode
+          bluetoothStatusViewModel.showManualBuzzerControl
               ? ManualBuzzerControlPanel(
                   isConnected: bluetoothStatusViewModel.isConnected,
                   activeCommand: activeBuzzerCommand,

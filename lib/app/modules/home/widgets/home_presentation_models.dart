@@ -264,6 +264,7 @@ class BluetoothStatusViewModel {
     required this.outputModeLabel,
     required this.outputModeTone,
     required this.isBuzzerOutputMode,
+    required this.showManualBuzzerControl,
     required this.lastCommandLabel,
     required this.lastPayloadLabel,
     required this.toggleActionLabel,
@@ -282,6 +283,7 @@ class BluetoothStatusViewModel {
     required bool isConnected,
     required bool isMockMode,
     required BluetoothOutputMode outputMode,
+    required bool isManualBuzzerControlEnabled,
     required String lastCommandLabel,
     required String lastPayload,
     required String connectedDeviceName,
@@ -319,6 +321,9 @@ class BluetoothStatusViewModel {
           ? HomeTone.soft
           : HomeTone.good,
       isBuzzerOutputMode: outputMode == BluetoothOutputMode.buzzerReal,
+      showManualBuzzerControl:
+          outputMode == BluetoothOutputMode.buzzerReal ||
+          isManualBuzzerControlEnabled,
       lastCommandLabel: lastCommandLabel.isEmpty
           ? 'Sin comando'
           : lastCommandLabel,
@@ -345,6 +350,7 @@ class BluetoothStatusViewModel {
   final String outputModeLabel;
   final HomeTone outputModeTone;
   final bool isBuzzerOutputMode;
+  final bool showManualBuzzerControl;
   final String lastCommandLabel;
   final String lastPayloadLabel;
   final String toggleActionLabel;

@@ -205,6 +205,8 @@ class HomePresentationMapper {
       isConnected: controller.isBluetoothConnected.value,
       isMockMode: controller.isBluetoothMockMode.value,
       outputMode: controller.bluetoothOutputMode.value,
+      isManualBuzzerControlEnabled:
+          controller.isManualBuzzerControlEnabled.value,
       lastCommandLabel: controller.lastBluetoothCommandLabel.value,
       lastPayload: controller.lastBluetoothPayload.value,
       connectedDeviceName: controller.connectedBluetoothDeviceName.value,

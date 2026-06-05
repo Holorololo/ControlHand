@@ -32,6 +32,7 @@ class BluetoothController extends GetxController {
   final RxBool isConnected = false.obs;
   final RxBool isMockMode = true.obs;
   final RxBool isLoadingDevices = false.obs;
+  final RxBool isManualBuzzerControlEnabled = false.obs;
   final Rx<BluetoothOutputMode> outputMode =
       BluetoothOutputMode.autoVirtual.obs;
   final Rxn<CarCommand> lastCommand = Rxn<CarCommand>();
@@ -47,6 +48,7 @@ class BluetoothController extends GetxController {
 
   Worker? _handStateWorker;
   String? _lastDispatchedPayload;
+  bool _wasHandOpen = false;
 
   BluetoothCommandService get _service =>
       _bluetoothService ?? Get.find<BluetoothCommandService>();
@@ -136,6 +138,7 @@ class BluetoothController extends GetxController {
 
   void enableAutoVirtualMode() {
     outputMode.value = BluetoothOutputMode.autoVirtual;
+    isManualBuzzerControlEnabled.value = false;
     _lastDispatchedPayload = null;
   }
 
@@ -212,6 +215,8 @@ class BluetoothController extends GetxController {
     }
 
     final handStatus = state.handDetected ? state.handState : 'none';
+    _syncManualBuzzerControlAvailability(handStatus);
+
     if (outputMode.value == BluetoothOutputMode.buzzerReal) {
       unawaited(sendBuzzerCommandFromHandStatus(handStatus));
       return;
@@ -281,6 +286,22 @@ class BluetoothController extends GetxController {
     }
 
     selectDevice(devices.first.address);
+  }
+
+  void _syncManualBuzzerControlAvailability(String handStatus) {
+    final isHandOpen = _isOpenHandStatus(handStatus);
+    if (isHandOpen && !_wasHandOpen) {
+      isManualBuzzerControlEnabled.value = true;
+    }
+
+    _wasHandOpen = isHandOpen;
+  }
+
+  bool _isOpenHandStatus(String handStatus) {
+    final normalized = handStatus.trim().toLowerCase();
+    return normalized.contains('abierta') ||
+        normalized.contains('open') ||
+        normalized.contains('hand_open');
   }
 
   String _readServiceError({required String fallback}) {
