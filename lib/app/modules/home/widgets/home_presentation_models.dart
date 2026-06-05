@@ -2,9 +2,20 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
-import '../../../data/enums/car_command.dart';
-import '../../../data/mappers/car_command_mapper.dart';
+import '../../../data/enums/bluetooth_output_mode.dart';
 import 'home_widget_support.dart';
+
+class BluetoothDeviceOptionViewModel {
+  const BluetoothDeviceOptionViewModel({
+    required this.address,
+    required this.name,
+    required this.label,
+  });
+
+  final String address;
+  final String name;
+  final String label;
+}
 
 class ConnectionStatusViewModel {
   const ConnectionStatusViewModel._({
@@ -248,42 +259,122 @@ class BluetoothStatusViewModel {
   const BluetoothStatusViewModel._({
     required this.connectionLabel,
     required this.connectionTone,
-    required this.modeLabel,
-    required this.modeTone,
+    required this.transportModeLabel,
+    required this.transportModeTone,
+    required this.outputModeLabel,
+    required this.outputModeTone,
+    required this.isBuzzerOutputMode,
     required this.lastCommandLabel,
     required this.lastPayloadLabel,
     required this.toggleActionLabel,
+    required this.connectedDeviceLabel,
+    required this.deviceSelectionLabel,
+    required this.deviceSelectionHint,
+    required this.deviceErrorLabel,
+    required this.isLoadingDevices,
+    required this.hasPairedDevices,
+    required this.selectedDeviceAddress,
+    required this.deviceOptions,
     required this.isConnected,
   });
 
   factory BluetoothStatusViewModel({
     required bool isConnected,
     required bool isMockMode,
-    required CarCommand? lastCommand,
+    required BluetoothOutputMode outputMode,
+    required String lastCommandLabel,
     required String lastPayload,
+    required String connectedDeviceName,
+    required String? connectedDeviceAddress,
+    required String selectedDeviceName,
+    required String? selectedDeviceAddress,
+    required String errorMessage,
+    required bool isLoadingDevices,
+    required List<BluetoothDeviceOptionViewModel> deviceOptions,
   }) {
+    final deviceLabel = _formatBluetoothDeviceLabel(
+      name: selectedDeviceName,
+      address: selectedDeviceAddress,
+      emptyLabel: 'Sin dispositivo',
+    );
+    final connectedLabel = _formatBluetoothDeviceLabel(
+      name: connectedDeviceName,
+      address: connectedDeviceAddress,
+      emptyLabel: 'Sin conexion activa',
+    );
+
     return BluetoothStatusViewModel._(
       connectionLabel: isConnected
           ? 'Bluetooth conectado'
           : 'Bluetooth desconectado',
       connectionTone: isConnected ? HomeTone.good : HomeTone.alert,
-      modeLabel: isMockMode ? 'Modo simulado' : 'Modo real',
-      modeTone: isMockMode ? HomeTone.soft : HomeTone.warn,
-      lastCommandLabel: lastCommand == null
+      transportModeLabel: isMockMode
+          ? 'Transporte simulado'
+          : 'Transporte real',
+      transportModeTone: isMockMode ? HomeTone.soft : HomeTone.warn,
+      outputModeLabel: outputMode == BluetoothOutputMode.autoVirtual
+          ? 'Auto virtual'
+          : 'Buzzer real',
+      outputModeTone: outputMode == BluetoothOutputMode.autoVirtual
+          ? HomeTone.soft
+          : HomeTone.good,
+      isBuzzerOutputMode: outputMode == BluetoothOutputMode.buzzerReal,
+      lastCommandLabel: lastCommandLabel.isEmpty
           ? 'Sin comando'
-          : CarCommandMapper.toVisualText(lastCommand),
+          : lastCommandLabel,
       lastPayloadLabel: lastPayload.isEmpty ? 'Sin payload' : lastPayload,
       toggleActionLabel: isConnected ? 'Desconectar' : 'Conectar',
+      connectedDeviceLabel: connectedLabel,
+      deviceSelectionLabel: deviceLabel,
+      deviceSelectionHint: deviceOptions.isEmpty
+          ? 'No hay dispositivos emparejados.'
+          : 'Selecciona un HC-05/HC-06 emparejado antes de conectar.',
+      deviceErrorLabel: errorMessage,
+      isLoadingDevices: isLoadingDevices,
+      hasPairedDevices: deviceOptions.isNotEmpty,
+      selectedDeviceAddress: selectedDeviceAddress,
+      deviceOptions: deviceOptions,
       isConnected: isConnected,
     );
   }
 
   final String connectionLabel;
   final HomeTone connectionTone;
-  final String modeLabel;
-  final HomeTone modeTone;
+  final String transportModeLabel;
+  final HomeTone transportModeTone;
+  final String outputModeLabel;
+  final HomeTone outputModeTone;
+  final bool isBuzzerOutputMode;
   final String lastCommandLabel;
   final String lastPayloadLabel;
   final String toggleActionLabel;
+  final String connectedDeviceLabel;
+  final String deviceSelectionLabel;
+  final String deviceSelectionHint;
+  final String deviceErrorLabel;
+  final bool isLoadingDevices;
+  final bool hasPairedDevices;
+  final String? selectedDeviceAddress;
+  final List<BluetoothDeviceOptionViewModel> deviceOptions;
   final bool isConnected;
+}
+
+String _formatBluetoothDeviceLabel({
+  required String name,
+  required String? address,
+  required String emptyLabel,
+}) {
+  final normalizedName = name.trim();
+  final normalizedAddress = address?.trim() ?? '';
+
+  if (normalizedName.isNotEmpty && normalizedAddress.isNotEmpty) {
+    return '$normalizedName ($normalizedAddress)';
+  }
+  if (normalizedName.isNotEmpty) {
+    return normalizedName;
+  }
+  if (normalizedAddress.isNotEmpty) {
+    return normalizedAddress;
+  }
+  return emptyLabel;
 }

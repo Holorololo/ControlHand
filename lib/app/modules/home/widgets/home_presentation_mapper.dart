@@ -189,11 +189,31 @@ class HomePresentationMapper {
   static BluetoothStatusViewModel mapBluetoothStatus({
     required HomeController controller,
   }) {
+    final deviceOptions = controller.pairedBluetoothDevices
+        .map(
+          (device) => BluetoothDeviceOptionViewModel(
+            address: device.address,
+            name: device.name,
+            label: device.name.isEmpty
+                ? device.address
+                : '${device.name} (${device.address})',
+          ),
+        )
+        .toList(growable: false);
+
     return BluetoothStatusViewModel(
       isConnected: controller.isBluetoothConnected.value,
       isMockMode: controller.isBluetoothMockMode.value,
-      lastCommand: controller.lastBluetoothCommand.value,
+      outputMode: controller.bluetoothOutputMode.value,
+      lastCommandLabel: controller.lastBluetoothCommandLabel.value,
       lastPayload: controller.lastBluetoothPayload.value,
+      connectedDeviceName: controller.connectedBluetoothDeviceName.value,
+      connectedDeviceAddress: controller.connectedBluetoothDeviceAddress.value,
+      selectedDeviceName: controller.selectedBluetoothDeviceName.value,
+      selectedDeviceAddress: controller.selectedBluetoothDeviceAddress.value,
+      errorMessage: controller.bluetoothErrorMessage.value,
+      isLoadingDevices: controller.isBluetoothLoadingDevices.value,
+      deviceOptions: deviceOptions,
     );
   }
 

@@ -1,0 +1,1 @@
+enum BluetoothOutputMode { autoVirtual, buzzerReal }

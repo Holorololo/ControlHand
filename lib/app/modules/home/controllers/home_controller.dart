@@ -2,10 +2,13 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../data/enums/bluetooth_output_mode.dart';
+import '../../../data/enums/buzzer_command.dart';
 import '../../../data/enums/car_command.dart';
 import '../../../data/models/auto_state.dart';
 import '../../../services/auto_state_polling_service.dart';
 import '../../../services/backend_process_service.dart';
+import '../../../services/bluetooth_command_service.dart';
 import '../../../services/mobile_camera_relay_service.dart';
 import 'bluetooth_controller.dart';
 import 'connection_controller.dart';
@@ -36,8 +39,26 @@ class HomeController extends GetxController {
       _driveSessionController.isDiagnosticsVisible;
   RxBool get isBluetoothConnected => _bluetoothController.isConnected;
   RxBool get isBluetoothMockMode => _bluetoothController.isMockMode;
+  RxBool get isBluetoothLoadingDevices => _bluetoothController.isLoadingDevices;
+  Rx<BluetoothOutputMode> get bluetoothOutputMode =>
+      _bluetoothController.outputMode;
   Rxn<CarCommand> get lastBluetoothCommand => _bluetoothController.lastCommand;
+  Rxn<BuzzerCommand> get lastBluetoothBuzzerCommand =>
+      _bluetoothController.lastBuzzerCommand;
+  RxString get lastBluetoothCommandLabel =>
+      _bluetoothController.lastCommandLabel;
   RxString get lastBluetoothPayload => _bluetoothController.lastPayload;
+  RxString get bluetoothErrorMessage => _bluetoothController.errorMessage;
+  RxList<BluetoothDeviceInfo> get pairedBluetoothDevices =>
+      _bluetoothController.pairedDevices;
+  RxnString get selectedBluetoothDeviceAddress =>
+      _bluetoothController.selectedDeviceAddress;
+  RxString get selectedBluetoothDeviceName =>
+      _bluetoothController.selectedDeviceName;
+  RxnString get connectedBluetoothDeviceAddress =>
+      _bluetoothController.connectedDeviceAddress;
+  RxString get connectedBluetoothDeviceName =>
+      _bluetoothController.connectedDeviceName;
 
   TextEditingController get hostTextController =>
       _connectionController.hostTextController;
@@ -98,6 +119,12 @@ class HomeController extends GetxController {
   Future<void> toggleBluetoothConnection() =>
       _bluetoothController.toggleConnection();
 
+  Future<void> connectSelectedBluetoothDevice() =>
+      _bluetoothController.connectSelectedDevice();
+
+  Future<void> refreshPairedBluetoothDevices() =>
+      _bluetoothController.refreshPairedDevices();
+
   Future<void> sendForward() => _bluetoothController.sendForward();
 
   Future<void> sendStop() => _bluetoothController.sendStop();
@@ -107,6 +134,19 @@ class HomeController extends GetxController {
   Future<void> sendRight() => _bluetoothController.sendRight();
 
   Future<void> sendBackward() => _bluetoothController.sendBackward();
+
+  Future<void> sendBuzzerOn() => _bluetoothController.sendBuzzerOn();
+
+  Future<void> sendBuzzerOff() => _bluetoothController.sendBuzzerOff();
+
+  void enableAutoVirtualBluetoothMode() =>
+      _bluetoothController.enableAutoVirtualMode();
+
+  void enableBuzzerRealBluetoothMode() =>
+      _bluetoothController.enableBuzzerRealMode();
+
+  void selectBluetoothDevice(String? address) =>
+      _bluetoothController.selectDevice(address);
 
   Future<void> openDiagnosticsPanel() =>
       _driveSessionController.openDiagnosticsPanel();

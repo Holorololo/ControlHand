@@ -290,8 +290,21 @@ class _ControlCenterBody extends StatelessWidget {
           return CarCommandPanel(
             bluetoothStatusViewModel: bluetoothStatusViewModel,
             activeCommand: controller.lastBluetoothCommand.value,
+            activeBuzzerCommand: controller.lastBluetoothBuzzerCommand.value,
             onToggleBluetoothConnection: () {
               controller.toggleBluetoothConnection();
+            },
+            onSelectAutoVirtualMode: () {
+              controller.enableAutoVirtualBluetoothMode();
+            },
+            onSelectBuzzerRealMode: () {
+              controller.enableBuzzerRealBluetoothMode();
+            },
+            onSelectBluetoothDevice: (address) {
+              controller.selectBluetoothDevice(address);
+            },
+            onRefreshBluetoothDevices: () {
+              controller.refreshPairedBluetoothDevices();
             },
             onForward: () {
               controller.sendForward();
@@ -307,6 +320,12 @@ class _ControlCenterBody extends StatelessWidget {
             },
             onBackward: () {
               controller.sendBackward();
+            },
+            onBuzzerOn: () {
+              controller.sendBuzzerOn();
+            },
+            onBuzzerOff: () {
+              controller.sendBuzzerOff();
             },
           );
         }),

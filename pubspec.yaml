@@ -38,6 +38,7 @@ dependencies:
   get: ^4.7.3
   http: ^1.6.0
   image: ^4.9.1
+  bluetooth_serial_android: ^1.0.0
 
 dev_dependencies:
   flutter_test:

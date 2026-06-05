@@ -5,6 +5,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 $backendPort = 5000
+$backendHost = "127.0.0.1"
+$useClassicBluetooth = "true"
 
 function Test-BackendHealth {
     param(
@@ -103,11 +105,18 @@ try {
 
     Push-Location $projectRoot
     try {
+        $flutterArgs = @(
+            "run",
+            "--dart-define=BACKEND_HOST=$backendHost",
+            "--dart-define=BACKEND_PORT=$backendPort",
+            "--dart-define=USE_CLASSIC_BLUETOOTH=$useClassicBluetooth"
+        )
+
         if ($DeviceId) {
-            flutter run -d $DeviceId
-        } else {
-            flutter run
+            $flutterArgs += @("-d", $DeviceId)
         }
+
+        & flutter @flutterArgs
     } finally {
         Pop-Location
     }

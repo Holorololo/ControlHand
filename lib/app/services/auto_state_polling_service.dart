@@ -282,6 +282,7 @@ class AutoStatePollingService extends GetxService {
         previous.backendReady != next.backendReady ||
         previous.backendMessage != next.backendMessage ||
         previous.backendLastError != next.backendLastError ||
+        !identical(previous.previewBytes, next.previewBytes) ||
         previous.hasCameraPreview != next.hasCameraPreview ||
         previous.cameraFrameWidth != next.cameraFrameWidth ||
         previous.cameraFrameHeight != next.cameraFrameHeight;
