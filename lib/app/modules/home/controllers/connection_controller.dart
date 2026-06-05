@@ -8,7 +8,7 @@ import '../../../services/auto_state_polling_service.dart';
 import '../../../services/backend_process_service.dart';
 import '../../../services/mobile_camera_relay_service.dart';
 
-class ConnectionController extends GetxController {
+class ConnectionController extends GetxController with WidgetsBindingObserver {
   ConnectionController({
     this.autoConnect = true,
     String? apiBaseUrlOverride,
@@ -50,6 +50,7 @@ class ConnectionController extends GetxController {
       Get.find<BackendProcessService>();
   final MobileCameraRelayService _mobileCameraRelayService =
       Get.find<MobileCameraRelayService>();
+  bool _connectRequestInProgress = false;
 
   late final TextEditingController hostTextController = TextEditingController(
     text: _resolveInitialHost(),
@@ -161,42 +162,58 @@ class ConnectionController extends GetxController {
 
   void initializeConnectionFlow() {
     if (_shouldAutoConnectOnLaunch()) {
-      unawaited(connect());
+      unawaited(connect(showSuccessMessage: true));
     }
   }
 
-  Future<void> connect() async {
+  Future<void> connect({bool showSuccessMessage = true}) async {
+    if (_connectRequestInProgress) {
+      return;
+    }
+
     final host = hostTextController.text.trim();
     final port = int.tryParse(portTextController.text.trim());
 
     if (host.isEmpty || port == null) {
-      Get.snackbar(
-        'Endpoint invalido',
-        'Revisa el host y el puerto antes de conectar.',
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(16),
+      _showTransientSnackbar(
+        title: 'Endpoint invalido',
+        message: 'Revisa el host y el puerto antes de conectar.',
+        backgroundColor: const Color(0xFF3A1020),
       );
       return;
     }
 
     final endpoint = _normalizeBackendEndpoint(host: host, port: port);
+    _connectRequestInProgress = true;
 
-    if (canUsePhoneCamera) {
-      await _mobileCameraRelayService.stopRelay();
-    }
+    try {
+      if (canUsePhoneCamera) {
+        await _mobileCameraRelayService.stopRelay();
+      }
 
-    await _backendProcessService.ensureStarted(
-      host: endpoint.host,
-      port: endpoint.port,
-    );
-    await _pollingService.connect(host: host, port: endpoint.port);
-
-    if (_pollingService.status.value == SocketConnectionStatus.connected &&
-        canUsePhoneCamera) {
-      await _mobileCameraRelayService.startRelay(
-        host: host,
+      await _backendProcessService.ensureStarted(
+        host: endpoint.host,
         port: endpoint.port,
       );
+      await _pollingService.connect(host: host, port: endpoint.port);
+
+      if (_pollingService.status.value == SocketConnectionStatus.connected &&
+          canUsePhoneCamera) {
+        await _mobileCameraRelayService.startRelay(
+          host: host,
+          port: endpoint.port,
+        );
+      }
+
+      if (_pollingService.status.value == SocketConnectionStatus.connected &&
+          showSuccessMessage) {
+        _scheduleConnectionSuccessSnackbar(
+          host: endpoint.host,
+          port: endpoint.port,
+        );
+      }
+    } finally {
+      _connectRequestInProgress = false;
     }
   }
 
@@ -213,7 +230,7 @@ class ConnectionController extends GetxController {
       return;
     }
 
-    await connect();
+    await connect(showSuccessMessage: true);
   }
 
   Future<void> restartManagedBackend() async {
@@ -228,7 +245,7 @@ class ConnectionController extends GetxController {
     }
 
     await _backendProcessService.stopManagedBackend();
-    await connect();
+    await connect(showSuccessMessage: true);
   }
 
   String _resolveInitialHost() {
@@ -318,8 +335,92 @@ class ConnectionController extends GetxController {
         normalizedHost == '[::1]';
   }
 
+  void _scheduleConnectionSuccessSnackbar({
+    required String host,
+    required int port,
+  }) {
+    Future<void>.delayed(const Duration(milliseconds: 180), () {
+      _showTransientSnackbar(
+        title: 'Conexion exitosa',
+        message: 'Backend listo en $host:$port',
+        backgroundColor: const Color(0xFF0F2C44),
+      );
+    });
+  }
+
+  void _showTransientSnackbar({
+    required String title,
+    required String message,
+    required Color backgroundColor,
+  }) {
+    if (Get.testMode) {
+      return;
+    }
+
+    final overlayContext = Get.overlayContext;
+    final baseContext = Get.context;
+    final navigatorState = Get.key.currentState;
+    if (overlayContext == null &&
+        baseContext == null &&
+        navigatorState == null) {
+      return;
+    }
+
+    try {
+      Get.closeAllSnackbars();
+      Get.snackbar(
+        title,
+        message,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 2),
+        margin: const EdgeInsets.all(16),
+        backgroundColor: backgroundColor,
+        colorText: Colors.white,
+      );
+    } catch (_) {
+      // Si la UI aun no esta lista preferimos omitir el mensaje antes que
+      // romper el flujo de conexion automatica.
+    }
+  }
+
+  @override
+  void onInit() {
+    super.onInit();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      return;
+    }
+
+    if (!_shouldAutoConnectOnLaunch()) {
+      return;
+    }
+
+    if (isConnected) {
+      final endpoint = _normalizeBackendEndpoint(
+        host: hostTextController.text.trim(),
+        port:
+            int.tryParse(portTextController.text.trim()) ??
+            _backendPortOverrideValue,
+      );
+      _scheduleConnectionSuccessSnackbar(
+        host: endpoint.host,
+        port: endpoint.port,
+      );
+      return;
+    }
+
+    if (!isConnecting && !_connectRequestInProgress) {
+      unawaited(connect(showSuccessMessage: true));
+    }
+  }
+
   @override
   void onClose() {
+    WidgetsBinding.instance.removeObserver(this);
     hostTextController.dispose();
     portTextController.dispose();
     super.onClose();

@@ -74,13 +74,25 @@ class BluetoothController extends GetxController {
 
   Future<void> connect({String? address}) async {
     try {
-      final targetAddress = address ?? selectedDeviceAddress.value;
+      final preferredAddress = address?.trim();
+      if ((preferredAddress == null || preferredAddress.isEmpty) &&
+          pairedDevices.isEmpty &&
+          !isLoadingDevices.value) {
+        await refreshPairedDevices();
+      }
+
+      final targetAddress = preferredAddress?.isNotEmpty == true
+          ? preferredAddress
+          : selectedDeviceAddress.value;
       await _service.connect(address: targetAddress);
       _setRxIfChanged<bool>(isConnected, _service.isConnected);
       _lastDispatchedPayload = null;
       _queuedPayloadRequest = null;
       _lastManualDispatchAt = null;
       _setRxIfChanged<String>(errorMessage, '');
+      if (outputMode.value == BluetoothOutputMode.buzzerReal) {
+        _setRxIfChanged<bool>(isManualBuzzerControlEnabled, true);
+      }
       _syncConnectedDeviceState();
       _syncSelectedDeviceFromConnection();
     } catch (error) {
@@ -330,9 +342,13 @@ class BluetoothController extends GetxController {
     super.onInit();
     _setRxIfChanged<bool>(isMockMode, isMockModeDefault);
     _setRxIfChanged<BluetoothOutputMode>(outputMode, initialOutputMode);
+    _setRxIfChanged<bool>(
+      isManualBuzzerControlEnabled,
+      initialOutputMode == BluetoothOutputMode.buzzerReal,
+    );
     _syncConnectedDeviceState();
 
-    if (isMockModeDefault) {
+    if (isMockModeDefault || _service.isSupported) {
       unawaited(refreshPairedDevices());
     }
 

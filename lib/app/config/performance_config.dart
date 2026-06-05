@@ -18,8 +18,8 @@ class PerformanceConfig {
   static const int frameUploadTimeoutMs = _isQuality
       ? 3400
       : (_isBalanced ? 3000 : 2000);
-  static const int bluetoothConnectTimeoutMs = 2500;
-  static const int bluetoothSendTimeoutMs = 1200;
+  static const int bluetoothConnectTimeoutMs = 6500;
+  static const int bluetoothSendTimeoutMs = 2500;
   static const int pollingIntervalMs = _isQuality
       ? 480
       : (_isBalanced ? 420 : 360);

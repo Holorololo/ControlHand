@@ -13,6 +13,9 @@ import 'bluetooth_command_service.dart';
 class ClassicBluetoothCommandService extends GetxService
     implements BluetoothCommandService {
   static const String _defaultSppUuid = '00001101-0000-1000-8000-00805F9B34FB';
+  static const Duration _postConnectStabilizationDelay = Duration(
+    milliseconds: 220,
+  );
 
   bool _isConnected = false;
   String _lastCommand = '';
@@ -60,9 +63,18 @@ class ClassicBluetoothCommandService extends GetxService
 
     final stopwatch = Stopwatch()..start();
     try {
+      await disconnect();
       await _requestBluetoothPermissions();
 
-      final pairedDevices = await _loadPairedDevices(requestPermissions: false);
+      List<BluetoothDeviceInfo> pairedDevices = const <BluetoothDeviceInfo>[];
+      try {
+        pairedDevices = await _loadPairedDevices(requestPermissions: true);
+      } catch (_) {
+        final normalizedAddress = (address ?? '').trim();
+        if (normalizedAddress.isEmpty) {
+          rethrow;
+        }
+      }
       final targetDevice = _resolveTargetDevice(
         address: address,
         pairedDevices: pairedDevices,
@@ -78,7 +90,7 @@ class ClassicBluetoothCommandService extends GetxService
           await FlutterBluetoothSerial.connect(
             targetDevice.address,
             uuid: _defaultSppUuid,
-            timeoutMs: 400,
+            timeoutMs: PerformanceConfig.bluetoothConnectTimeoutMs,
           ).timeout(
             const Duration(
               milliseconds: PerformanceConfig.bluetoothConnectTimeoutMs,
@@ -94,6 +106,7 @@ class ClassicBluetoothCommandService extends GetxService
         throw BluetoothCommandException(_lastError);
       }
 
+      await Future<void>.delayed(_postConnectStabilizationDelay);
       _isConnected = true;
       _lastError = '';
       _lastConnectDuration = stopwatch.elapsed;

@@ -225,6 +225,25 @@ void main() {
       expect(controller.selectedDeviceName.value, 'HC-05 Sala');
     });
 
+    test(
+      'starts with manual control enabled when bluetooth real mode is initial',
+      () {
+        final service = MockBluetoothCommandService();
+        final controller = BluetoothController(
+          bluetoothService: service,
+          enableStateSync: false,
+          startConnected: false,
+          initialOutputMode: BluetoothOutputMode.buzzerReal,
+        );
+
+        controller.onInit();
+
+        expect(controller.outputMode.value, BluetoothOutputMode.buzzerReal);
+        expect(controller.isManualBuzzerControlEnabled.value, isTrue);
+        controller.onClose();
+      },
+    );
+
     test('connects using the selected paired device address', () async {
       final service = MockBluetoothCommandService()
         ..pairedDevices = const <BluetoothDeviceInfo>[
@@ -246,6 +265,27 @@ void main() {
       expect(controller.connectedDeviceAddress.value, 'AA:BB:02');
       expect(controller.connectedDeviceName.value, 'HC-06 Taller');
     });
+
+    test(
+      'refreshes paired devices before connecting when no device was selected',
+      () async {
+        final service = MockBluetoothCommandService()
+          ..pairedDevices = const <BluetoothDeviceInfo>[
+            BluetoothDeviceInfo(name: 'HC-05 Sala', address: 'AA:BB:01'),
+          ];
+        final controller = BluetoothController(
+          bluetoothService: service,
+          enableStateSync: false,
+          startConnected: false,
+        );
+
+        await controller.connect();
+
+        expect(controller.isConnected.value, isTrue);
+        expect(controller.selectedDeviceAddress.value, 'AA:BB:01');
+        expect(service.lastConnectAddress, 'AA:BB:01');
+      },
+    );
 
     test(
       'manual commands do not send when bluetooth is disconnected',
